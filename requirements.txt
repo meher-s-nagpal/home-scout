@@ -1,0 +1,5 @@
+homeharvest>=0.8
+requests
+PyYAML
+Jinja2
+Pillow   # only needed if report.embed_photos: true

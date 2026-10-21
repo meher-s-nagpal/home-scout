@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b3d91">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Home Scout"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>{{ cfg.report.title }} - {{ today }}</title>
+<style>
+:root{--g:#1e8e3e;--y:#d79b00;--r:#c5221f;--b:#1a73e8;--mut:#5f6368;--bg:#f4f6f8}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:#202124;font-size:14px}
+a{color:var(--b)}
+header{background:linear-gradient(135deg,#0b3d91,#1a73e8);color:#fff;padding:18px 16px;padding-top:max(18px,env(safe-area-inset-top))}
+header h1{margin:0 0 4px;font-size:21px}header .sub{opacity:.85;font-size:13px}
+.wrap{max-width:1250px;margin:0 auto;padding:12px}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.kpi{background:rgba(255,255,255,.14);border-radius:10px;padding:8px 12px;flex:1 1 140px}
+.kpi b{font-size:20px;display:block}.up{color:#ffb4ab}.down{color:#b7f5c5}.small{font-size:12px}.mut{color:var(--mut)}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12);padding:14px;margin-bottom:14px}
+h2{font-size:18px;margin:6px 0 10px}h3{font-size:15px;margin:0 0 8px}
+table{border-collapse:collapse;width:100%}th,td{padding:5px 6px;border-bottom:1px solid #eee;text-align:left}th{background:#fafafa;font-weight:600}
+.num{text-align:right;white-space:nowrap}
+/* filters */
+details.flt{position:sticky;top:0;z-index:5;padding:0}details.flt>summary{list-style:none;padding:12px 14px;cursor:pointer;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+details.flt>summary::-webkit-details-marker{display:none}details.flt>summary::after{content:"▾";color:var(--mut)}details.flt[open]>summary::after{content:"▴"}
+.fbody{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:0 14px 14px}
+.fbody label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
+.fbody input[type=number],.fbody select{padding:7px;font-size:15px;width:120px;border:1px solid #ccc;border-radius:6px}
+.fbody input[type=range]{width:200px}
+.cities{display:flex;flex-wrap:wrap;gap:6px 12px;width:100%}.cities label{flex-direction:row;align-items:center;gap:5px;color:#202124;font-size:14px}
+.chk{flex-direction:row!important;align-items:center;gap:6px;color:#202124!important;font-size:14px!important}
+/* listing grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:14px}
+.L{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden;display:flex;flex-direction:column}
+.L .ph{position:relative;aspect-ratio:4/3;max-height:260px;background:#dde3ea;width:100%}.L .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.tag{position:absolute;top:8px;left:8px;background:var(--b);color:#fff;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:600}
+.tag.init{background:#7b1fa2}.tag.old{background:#5f6368}.tag.stale{background:var(--r)}
+.L .bd{padding:12px 14px;flex:1}.price{font-size:23px;font-weight:700}.addr a{color:#202124;text-decoration:none;font-weight:600;font-size:15px}
+.facts{display:flex;flex-wrap:wrap;gap:3px 12px;margin:6px 0;color:#3c4043}
+.dp{margin-top:8px;border:1px solid #e3e7ec;border-radius:8px;overflow:hidden}.dp th{background:#eef3fb;font-size:12px}.dp td{font-size:13px}
+.dp tr.ovr td{background:#fff4e5}.dp td.mo{font-weight:700}
+.warn{background:#fff4e5;border-left:3px solid var(--y);padding:5px 8px;margin-top:6px;font-size:12px;border-radius:4px}
+.info{background:#e8f0fe;border-left:3px solid var(--b);padding:5px 8px;margin-top:6px;font-size:12px;border-radius:4px}
+.err{border-left:4px solid var(--r)}
+.btn{display:block;text-align:center;background:var(--b);color:#fff;text-decoration:none;padding:10px 12px;border-radius:8px;font-weight:600;margin-top:10px}
+.news li{margin-bottom:6px}.cat{font-size:10px;text-transform:uppercase;background:#eee;border-radius:6px;padding:1px 6px;color:#444;margin-right:4px}
+.areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:14px}
+.fail{color:var(--r);font-weight:600}.ok{color:var(--g);font-weight:600}
+details.more summary{cursor:pointer;color:var(--b);font-size:12px;margin-top:6px}
+footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
+@media (max-width:600px){.wrap{padding:8px}.fbody label{flex:1 1 45%}.fbody input[type=number],.fbody select{width:100%}.fbody input[type=range]{width:100%}
+ .price{font-size:21px}.kpi{flex:1 1 40%}.kpi b{font-size:18px}}
+</style></head><body>
+<header><div class="wrap" style="padding:0">
+<h1>🏡 {{ cfg.report.title }}</h1>
+<div class="sub">{{ generated }} · <b>{{ n_new }}</b> new{% if first_run %} (initial run: last {{ cfg.search.initial_run_days }} days){% endif %} · {{ listings|length }} active matches (last {{ cfg.search.fetch_days }} days)</div>
+<div class="kpis">
+ <div class="kpi">30-yr fixed<b>{{ '%.2f'|format(rate.rate) }}%</b>
+  {% if rate.change is not none %}<span class="small {{ 'up' if rate.change>0 else 'down' }}">{{ '%+.2f'|format(rate.change) }} vs {{ rate.prev_date }}</span>{% endif %}<div class="small">Freddie Mac, week of {{ rate.date }}</div></div>
+ {% if used_rate != rate.rate %}<div class="kpi">Rate used (override)<b>{{ used_rate }}%</b></div>{% endif %}
+ <div class="kpi">New today<b>{{ n_new }}</b><span class="small">across {{ cfg.areas|length }} cities</span></div>
+ <div class="kpi">Search<b style="font-size:13px">{{ cfg.search.beds_min }}+ bd · {{ cfg.search.baths_min }}+ ba · single-family · lot ≥ {{ cfg.search.lot_sqft_min|intc }} sf</b></div>
+</div></div></header>
+<div class="wrap">
+{% if errors %}<div class="card err"><b>⚠ Problems this run</b><ul class="small">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+{% if not email_mode %}
+<details class="card flt" id="fdet"><summary><span>⚙ Filters &amp; sort</span><span class="small mut" id="count"></span></summary>
+<div class="fbody" id="filters">
+ <label>Min price<input type="number" id="pmin" step="25000" inputmode="numeric" placeholder="any"></label>
+ <label>Max price<input type="number" id="pmax" step="25000" inputmode="numeric" placeholder="any"></label>
+ <label>Max price slider: <span id="pmaxv"></span><input type="range" id="pmaxr" min="300000" max="3000000" step="25000"></label>
+ <label>Min beds<select id="beds">{% for b in [3,4,5,6] %}<option>{{ b }}</option>{% endfor %}</select></label>
+ <label>Min baths<select id="baths">{% for b in [2,2.5,3,3.5,4] %}<option>{{ b }}</option>{% endfor %}</select></label>
+ <label>Min lot: <span id="lotv"></span><input type="range" id="lot" min="{{ cfg.search.lot_sqft_min }}" max="30000" step="500"></label>
+ <label>Sort<select id="sort"><option value="price_asc">Price ↑</option><option value="price_desc">Price ↓</option><option value="newest">Newest listed</option><option value="lot_desc">Biggest lot</option></select></label>
+ <label class="chk"><input type="checkbox" id="newonly"> New only</label>
+ <div class="cities">{% for a in cfg.areas %}<label><input type="checkbox" class="cb" value="{{ a.city }}" checked>{{ a.city }}</label>{% endfor %}</div>
+</div></details>
+{% endif %}
+
+<div class="grid" id="grid">
+{% for L in listings %}{% if not email_mode or L.is_new %}
+<div class="L" data-id="{{ L.id }}">
+ <div class="ph">{% if L.photo_src %}<a href="{{ L.url }}" target="_blank" rel="noopener"><img src="{{ L.photo_src }}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>{% endif %}
+  {% if L.stale %}<span class="tag stale">last known · seen {{ L.first_seen }}</span>{% elif L.initial %}<span class="tag init">INITIAL · listed {{ L.list_date }}</span>{% elif L.is_new %}<span class="tag">NEW</span>{% else %}<span class="tag old">seen {{ L.first_seen }}</span>{% endif %}</div>
+ <div class="bd">
+  <div class="price">{{ L.price|money }}</div>
+  <div class="addr"><a href="{{ L.url }}" target="_blank" rel="noopener">{{ L.address }}</a><div class="mut">{{ L.city_line }}</div></div>
+  <div class="facts"><span><b>{{ L.beds }}</b> bd</span><span><b>{{ L.full_baths }}</b>{% if L.half_baths %}+{{ L.half_baths }}½{% endif %} ba</span>
+   <span><b>{{ L.sqft|intc }}</b> sf</span><span>lot <b>{{ L.lot|intc }}</b> sf{% if L.lot %} ({{ '%.2f'|format(L.lot/43560) }} ac){% endif %}</span>
+   <span>built <b>{{ L.year or '-' }}</b></span><span>{{ L.ppsf|money }}/sf</span><span>HOA {{ L.hoa|money }}/mo</span>
+   <span>{{ L.dom|intc }} days on market</span><span class="mut">listed {{ L.list_date }}</span></div>
+  <table class="dp"><tr><th>Down</th><th class="num">Down $</th><th class="num">Loan</th><th class="num">Est. /mo</th></tr>
+  {% for f in L.fin %}<tr class="{{ 'ovr' if f.over_limit }}"><td>{{ f.label }}{% if f.over_limit %} ⚠{% endif %}</td><td class="num">{{ f.down|money }}</td><td class="num">{{ f.loan|money }}</td><td class="num mo">{{ f.total|money }}</td></tr>{% endfor %}</table>
+  {% set over = L.fin|selectattr('over_limit')|list %}
+  {% if over %}<div class="warn">⚠ {% for f in over %}{{ f.label }}: loan exceeds {{ L.county }} County {{ f.limit_label }}{% if not loop.last %}; {% endif %}{% endfor %}.</div>{% endif %}
+  <details class="more"><summary>What's in the monthly estimate</summary><div class="small mut">
+   {% set f = L.fin[1] %}e.g. {{ f.label }}: P&amp;I {{ f.pi|money }} · property tax {{ f.tax|money }} · insurance {{ f.ins|money }} · PMI/MIP {{ f.mi|money }} · HOA {{ f.hoa|money }} at {{ '%.2f'|format(used_rate) }}%. 3%/5%/10% include conventional PMI; FHA includes 1.75% upfront MIP financed + annual MIP. Excludes Mello-Roos.</div></details>
+  {% set c = cfg.counties[L.county] %}
+  <div class="info">CalHFA MyHome: up to ~{{ L.myhome_amt|money }} (3.5%) deferred 2nd loan. {{ L.county }} County program income limit {{ c.calhfa_income_limit|money }} · FHA limit {{ c.fha_limit|money }} · conforming {{ c.conforming_limit|money }}.</div>
+  {% if L.mello %}<div class="warn">⚠ Possible Mello-Roos / CFD special tax ({% if L.year and L.year >= cfg.mello_roos.year_built_threshold %}built {{ L.year }}{% else %}common in {{ L.city }}{% endif %}). Not in the estimate; check the tax bill{% if L.tax_bill %} (last bill {{ L.tax_bill|money }}/yr){% endif %}.</div>{% endif %}
+  <a class="btn" href="{{ L.url }}" target="_blank" rel="noopener">View on Realtor.com →</a>
+ </div></div>
+{% endif %}{% endfor %}
+</div>
+<div class="card" id="empty" style="display:none">No listings match the current filters.</div>
+
+<h2 style="margin-top:22px">Areas</h2>
+<div class="areas">
+{% for st in area_stats %}{% set a = st.area %}
+<div class="card{{ ' err' if st.stale }}"><h3>{{ a.city }} <span class="mut small">· {{ a.county }} County</span>{% if st.stale %} <span class="fail small">(fetch failed - last known data)</span>{% endif %}</h3>
+<div class="small">Drive, no traffic: San José <span class="{{ 'ok' if a.drive_min.san_jose <= cfg.commute.san_jose_target_min else 'fail' }}">{{ a.drive_min.san_jose }} min</span> · Modesto <span class="{{ 'ok' if a.drive_min.modesto <= cfg.commute.modesto_target_min else 'fail' }}">{{ a.drive_min.modesto }} min</span></div>
+<table style="margin:8px 0"><tr><td>New today</td><td class="num"><b>{{ st.n_new }}</b></td><td>Matches ({{ cfg.search.fetch_days }}d)</td><td class="num">{{ st.n_all }}</td></tr>
+<tr><td>Median price</td><td class="num">{{ st.median_price|money }}</td><td>Median $/sf</td><td class="num">{{ st.median_ppsf|money }}</td></tr>
+<tr><td>Median lot</td><td class="num">{{ st.median_lot|intc }} sf</td><td></td><td></td></tr></table>
+{% set items = news.get(a.city, []) %}{% if items %}<ul class="news small">{% for n in items %}<li><span class="cat">{{ n.cat }}</span><a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a> <span class="mut">{{ n.source }} · {{ n.pub_str }}</span></li>{% endfor %}</ul>
+{% else %}<p class="mut small">No local headlines in the last {{ cfg.news.days }} days.</p>{% endif %}
+<div class="small"><a href="https://www.greatschools.org/search/search.page?q={{ a.city|urlencode }}%2C%20CA" target="_blank" rel="noopener">Schools (GreatSchools)</a> · <a href="https://www.caschooldashboard.org/" target="_blank" rel="noopener">CA School Dashboard</a> · <a href="https://www.redfin.com/news/data-center/" target="_blank" rel="noopener">Redfin market data</a></div>
+</div>{% endfor %}
+</div>
+
+<div class="card"><h2>First-time buyer assistance (general info)</h2><ul>{% for p in cfg.assistance %}<li><a href="{{ p.url }}" target="_blank" rel="noopener"><b>{{ p.name }}</b></a> - {{ p.detail }}</li>{% endfor %}</ul></div>
+</div>
+<footer>Listings: Realtor.com data via HomeHarvest (personal use) · Rate: {{ rate.source }} · News: Google News RSS<br>Estimates only; confirm with a lender. Generated by plain Python, no AI.</footer>
+
+{% if not email_mode %}
+<script>
+const D = {{ js_data|safe }};
+const $ = id => document.getElementById(id);
+const money = v => '$' + Math.round(v).toLocaleString();
+const byId = Object.fromEntries(D.listings.map(l => [l.id, l]));
+const grid = $('grid'), cards = [...grid.querySelectorAll('.L')];
+function update(){
+  const pmin = +$('pmin').value || 0, pmax = +$('pmax').value || Infinity, beds = +$('beds').value, baths = +$('baths').value, lot = +$('lot').value;
+  const newOnly = $('newonly').checked, sort = $('sort').value;
+  const cities = new Set([...document.querySelectorAll('.cb:checked')].map(c => c.value));
+  $('lotv').textContent = lot.toLocaleString() + ' sf'; $('pmaxv').textContent = isFinite(pmax) ? money(pmax) : 'any';
+  const key = {price_asc: l => l.price, price_desc: l => -l.price, newest: l => -(Date.parse(l.list_date) || 0), lot_desc: l => -(l.lot || 0)}[sort];
+  cards.sort((a, b) => { const A = byId[a.dataset.id], B = byId[b.dataset.id]; return (B.is_new - A.is_new) || (key(A) - key(B)); })
+       .forEach(c => grid.appendChild(c));
+  let shown = 0;
+  cards.forEach(el => {
+    const l = byId[el.dataset.id];
+    const ok = l.price >= pmin && l.price <= pmax && l.beds >= beds && l.baths >= baths && (l.lot || 0) >= lot
+               && cities.has(l.city) && (!newOnly || l.is_new);
+    el.style.display = ok ? '' : 'none'; if (ok) shown++;
+  });
+  $('count').textContent = `${shown} of ${D.listings.length} shown`; $('empty').style.display = shown ? 'none' : '';
+}
+(function init(){
+  const v = D.defaults;
+  $('beds').value = v.beds_min; $('baths').value = v.baths_min; $('lot').value = v.lot_sqft_min;
+  $('newonly').checked = !!v.new_only; $('sort').value = v.sort || 'price_asc'; $('pmaxr').value = $('pmaxr').max;
+  if (window.matchMedia('(min-width: 900px)').matches) $('fdet').open = true;   // collapsed on phones
+  $('pmaxr').addEventListener('input', e => { $('pmax').value = (+e.target.value >= +e.target.max) ? '' : e.target.value; update(); });
+  $('pmax').addEventListener('input', e => { $('pmaxr').value = e.target.value || $('pmaxr').max; update(); });
+  $('pmin').addEventListener('input', update); $('lot').addEventListener('input', update);
+  document.querySelectorAll('#filters select, #filters input[type=checkbox]').forEach(x => x.addEventListener('change', update));
+  update();
+})();
+</script>
+{% endif %}
+</body></html>

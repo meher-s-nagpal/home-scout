@@ -1,0 +1,4 @@
+# Home Scout - 6:00 AM Pacific daily
+CRON_TZ=America/Los_Angeles
+MAILTO=""
+0 6 * * * /workspace/home-scout/run.sh

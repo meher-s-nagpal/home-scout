@@ -1,0 +1,84 @@
+name: Home Scout daily
+
+on:
+  schedule:
+    # GitHub cron is UTC. 13:00 UTC = 6 AM PDT (summer), 14:00 UTC = 6 AM PST (winter).
+    # Both fire; scout.py --scheduled runs only once per Pacific day, at/after 6 AM.
+    - cron: "0 13 * * *"
+    - cron: "0 14 * * *"
+  workflow_dispatch: {}      # "Run workflow" button (works from the GitHub mobile app)
+
+permissions:
+  contents: write            # commit data/scout.db back
+  pages: write
+  id-token: write
+
+concurrency:
+  group: home-scout
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      ran: ${{ steps.scout.outputs.ran }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      - name: Run Home Scout
+        id: scout
+        env:
+          TZ: America/Los_Angeles
+          # Optional email (also set email.enabled: true in config.yaml). Leave secrets unset to skip.
+          HOME_SCOUT_SMTP_USER: ${{ secrets.HOME_SCOUT_SMTP_USER }}
+          HOME_SCOUT_SMTP_PASSWORD: ${{ secrets.HOME_SCOUT_SMTP_PASSWORD }}
+          HOME_SCOUT_EMAIL_TO: ${{ secrets.HOME_SCOUT_EMAIL_TO }}
+        run: python scout.py ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
+
+      - name: Commit listing state (new-listing tracking)
+        if: steps.scout.outputs.ran == 'true'
+        run: |
+          git config user.name  "home-scout-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/scout.db
+          if git diff --cached --quiet; then echo "no state change"; else
+            git commit -m "Home Scout state $(TZ=America/Los_Angeles date +%F)"
+            git pull --rebase --quiet || true
+            git push
+          fi
+
+      - name: Build site
+        if: steps.scout.outputs.ran == 'true'
+        run: |
+          mkdir -p _site
+          cp reports/latest.html _site/index.html
+          cp web/* _site/
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v6
+        if: steps.scout.outputs.ran == 'true'
+
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.scout.outputs.ran == 'true'
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.ran == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

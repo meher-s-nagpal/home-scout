@@ -1,0 +1,123 @@
+# ===================== Home Scout configuration =====================
+# Edit this file freely; it is re-read on every run. No AI is used at runtime.
+
+search:
+  # Minimum / maximum filters (null = no limit)
+  beds_min: 3
+  baths_min: 2              # full baths counted by Realtor.com data
+  lot_sqft_min: 5000        # FETCH filter (broad) - the page slider can loosen down to this
+  sqft_min: null
+  property_types: [single_family]
+  exclude_pending: true
+  include_missing_lot_size: false   # true = keep listings whose lot size is unknown
+  fetch_days: 30            # how far back each fetch looks (for market stats + catching missed runs)
+  initial_run_days: 7       # first run only: show listings from the last N days, marked "initial"
+  pause_between_cities_sec: 3
+
+# Default filters applied in the interactive page (you can change them live in the browser)
+view_defaults:
+  beds_min: 3
+  baths_min: 2
+  lot_sqft_min: 7000        # big yard for hosting 6-7 families
+  new_only: true            # show only listings new since the last run
+  sort: price_asc           # price_asc | price_desc | newest | lot_desc
+
+# Reference points used for the drive-time check (no traffic, OSRM public router, measured 2026-10-20)
+commute:
+  san_jose_target_min: 60     # no-traffic goal (expect ~75-90 with traffic)
+  modesto_target_min: 60
+  note: "OSRM free-flow estimates; OSRM tends to run ~10-20% slower than Google Maps' no-traffic times."
+
+areas:                       # optional per-area "location" overrides the search string (zip, "City, CA", etc.)
+  - city: Livermore
+    county: Alameda
+    drive_min: {san_jose: 46, modesto: 61}
+  - city: Dublin
+    county: Alameda
+    drive_min: {san_jose: 42, modesto: 70}
+  - city: Pleasanton
+    county: Alameda
+    drive_min: {san_jose: 39, modesto: 71}
+  - city: San Ramon
+    county: Contra Costa
+    drive_min: {san_jose: 47, modesto: 77}
+  - city: Tracy
+    county: San Joaquin
+    drive_min: {san_jose: 71, modesto: 39}
+  - city: Mountain House
+    county: San Joaquin
+    location: "95391"          # optional search override; "Mountain House, CA" returns nothing on Realtor.com
+    drive_min: {san_jose: 69, modesto: 50}
+  - city: Lathrop
+    county: San Joaquin
+    drive_min: {san_jose: 84, modesto: 31}
+  - city: Manteca
+    county: San Joaquin
+    drive_min: {san_jose: 85, modesto: 23}
+
+# 2026 one-unit loan limits (FHFA conforming / HUD FHA) and CalHFA income limits (eff. 2026-06-30).
+# Re-check every January (loan limits) and every June (CalHFA income limits).
+counties:
+  Alameda:      {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 322000}
+  Contra Costa: {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 322000}
+  San Joaquin:  {conforming_limit: 832750,  fha_limit: 678500,  calhfa_income_limit: 214000}
+
+finance:
+  rate_override_pct: null       # null = use latest Freddie Mac 30-yr (FRED MORTGAGE30US)
+  fha_rate_discount_pct: 0.0    # FHA rates are often a bit lower; adjust if you like
+  term_years: 30
+  property_tax_rate_pct: 1.2    # CA ~1% base + local assessments; Mello-Roos is EXTRA
+  insurance_annual: 2400        # homeowners insurance estimate ($/yr)
+  # Conventional PMI annual % of loan by down payment (rough mid-credit estimates)
+  pmi_annual_pct: {3: 0.85, 5: 0.70, 10: 0.45}
+  fha_upfront_mip_pct: 1.75     # financed into the loan
+  fha_annual_mip_pct: 0.55      # base loan <= $726,200 and <5% down
+  fha_annual_mip_pct_high: 0.75 # base loan  > $726,200 and <5% down
+  fha_high_balance_threshold: 726200
+  scenarios:                     # label, down %, loan type (conventional | fha)
+    - {label: "3% (Conv / CalHFA)", down_pct: 3,   type: conventional}
+    - {label: "3.5% FHA",           down_pct: 3.5, type: fha}
+    - {label: "5%",                 down_pct: 5,   type: conventional}
+    - {label: "10%",                down_pct: 10,  type: conventional}
+    - {label: "20%",                down_pct: 20,  type: conventional}
+
+mello_roos:
+  year_built_threshold: 2000    # newer builds -> flag "possible Mello-Roos / CFD"
+  likely_cities: [Mountain House, Lathrop]   # whole-city flag (many CFDs)
+
+news:
+  enabled: true
+  days: 3
+  max_per_city: 10
+  queries:                       # {city} is replaced by the city name
+    housing: '"{city}" CA housing OR homes OR real estate'
+    development: '"{city}" CA development OR construction OR city council'
+    schools: '"{city}" CA schools OR school district'
+    safety: '"{city}" CA police OR crime'
+
+assistance:                      # shown in every report; edit as programs change
+  - name: CalHFA MyHome Assistance
+    detail: "Deferred-payment 2nd loan: up to 3.5% of price with CalHFA FHA, or 3% with CalHFA conventional. First-time buyers; must use a CalHFA first mortgage through an approved lender; county income limits apply."
+    url: https://www.calhfa.ca.gov/homebuyer/programs/myhome.htm
+  - name: California Dream For All (shared appreciation)
+    detail: "Up to 20% / $150,000 for first-generation first-time buyers, by lottery. 2026 vouchers issued 5/20/2026 - watch for the next round. Cannot be combined with MyHome."
+    url: https://www.calhfa.ca.gov/dream/
+  - name: CalHFA CalPLUS with ZIP
+    detail: "CalHFA first mortgage with a zero-interest closing-cost loan."
+    url: https://www.calhfa.ca.gov/homebuyer/programs/calplus.htm
+  - name: CalHFA income limits (all counties)
+    detail: "Alameda & Contra Costa $322,000; San Joaquin $214,000 (eff. 6/30/2026)."
+    url: https://www.calhfa.ca.gov/homeownership/limits/income/income.pdf
+  - name: Local programs to check
+    detail: "City/county first-time buyer & down-payment programs change often (Alameda County HCD, Livermore/Pleasanton/Dublin housing divisions, San Joaquin County & Tracy/Manteca/Lathrop housing programs, GSFA Platinum). Verify current funding before relying on any."
+    url: https://www.calhfa.ca.gov/homebuyer/
+
+report:
+  title: "Home Scout - Tri-Valley & South San Joaquin"
+  embed_photos: false            # true = embed new-listing photos as base64 (bigger file, works offline); false = remote photo URLs
+  stale_fallback_days: 14        # if a city's fetch fails, show its last-known listings seen within N days
+
+email:
+  enabled: false                 # also needs env vars, see README (.env)
+  subject_prefix: "Home Scout"
+  attach_html: true
