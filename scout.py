@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests, yaml
+import hs_locations, hs_market, hs_news
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ROOT = Path(__file__).resolve().parent
@@ -87,55 +88,17 @@ def fetch_rate():
     return {"date": d1, "rate": v1, "prev_date": d0, "prev": v0, "change": round(v1 - v0, 2),
             "source": "Freddie Mac PMMS via FRED (MORTGAGE30US), weekly"}
 
-def fetch_listings(city, days, sc, location=None):
+def fetch_listings(location, sc, listing_type="for_sale", days=None):
+    """One HomeHarvest call. Lot-size filter is applied in Python so new builds on small lots are still seen."""
     from homeharvest import scrape_property
-    kw = dict(location=location or f"{city}, CA", listing_type="for_sale", past_days=days,
-              property_type=sc.get("property_types") or None, exclude_pending=sc.get("exclude_pending", True),
-              beds_min=sc.get("beds_min"), baths_min=sc.get("baths_min"), sqft_min=sc.get("sqft_min"))
-    if not sc.get("include_missing_lot_size"): kw["lot_sqft_min"] = sc.get("lot_sqft_min")
+    kw = dict(location=location, listing_type=listing_type, past_days=days,
+              property_type=sc.get("property_types") or None, beds_min=sc.get("beds_min"),
+              baths_min=sc.get("baths_min"), sqft_min=sc.get("sqft_min"))
+    if listing_type == "for_sale": kw["exclude_pending"] = sc.get("exclude_pending", True)
     kw = {k: v for k, v in kw.items() if v is not None}
     df = scrape_property(**kw)
     return [] if df is None else df.to_dict("records")
 
-def google_news(query, days):
-    q = f"{query} when:{days}d"
-    url = "https://news.google.com/rss/search?" + urllib.parse.urlencode({"q": q, "hl": "en-US", "gl": "US", "ceid": "US:en"})
-    r = requests.get(url, headers=UA, timeout=30); r.raise_for_status()
-    root = ET.fromstring(r.content); items = []
-    for it in root.iter("item"):
-        title = it.findtext("title") or ""
-        src = it.find("source"); source = src.text if src is not None else ""
-        if source and title.endswith(" - " + source): title = title[: -len(source) - 3]
-        try: pub = email.utils.parsedate_to_datetime(it.findtext("pubDate")).astimezone(TZ)
-        except Exception: pub = None
-        items.append({"title": title, "link": it.findtext("link"), "source": source, "pub": pub})
-    return items
-
-def norm_title(t):
-    return re.sub(r"[^a-z0-9 ]", "", t.lower())[:70]
-
-def city_news(city, cfg):
-    nc = cfg["news"]; cutoff = now_local() - dt.timedelta(days=nc["days"]); seen = set(); out = []
-    for cat, tmpl in nc["queries"].items():
-        try: items = google_news(tmpl.format(city=city), nc["days"])
-        except Exception as e:
-            log.warning("news %s/%s failed: %s", city, cat, e); continue
-        for it in items:
-            k = norm_title(it["title"])
-            if k in seen or (it["pub"] and it["pub"] < cutoff): continue
-            seen.add(k); it["cat"] = cat; out.append(it)
-        time.sleep(1)
-    out.sort(key=lambda x: x["pub"] or cutoff, reverse=True)
-    # balance categories: round-robin so one topic doesn't crowd others
-    by = {}
-    for it in out: by.setdefault(it["cat"], []).append(it)
-    bal = []
-    while len(bal) < nc["max_per_city"] and any(by.values()):
-        for cat in list(by):
-            if by[cat] and len(bal) < nc["max_per_city"]: bal.append(by[cat].pop(0))
-    bal.sort(key=lambda x: x["pub"] or cutoff, reverse=True)
-    for it in bal: it["pub_str"] = it["pub"].strftime("%b %d") if it["pub"] else ""
-    return bal
 
 def embed_photo(url):
     if not url: return ""
@@ -194,18 +157,45 @@ def gh_output(key, val):
     if f:
         with open(f, "a") as fh: fh.write(f"{key}={val}\n")
 
+def county_info(cfg, name):
+    c = cfg["counties"].get(name)
+    if c: return dict(c, name=name, unverified=False)
+    return dict(cfg["counties"]["_default"], name=name or "Unknown", unverified=True)
+
+def lot_ok(L, sc):
+    if L.get("lot") is None: return bool(sc.get("include_missing_lot_size"))
+    return L["lot"] >= (sc.get("lot_sqft_min") or 0)
+
+def city_matches(rec, area):
+    if not area.get("match_city", True): return True
+    c = s(rec.get("city"))
+    return not c or c.lower() == area["city"].lower()
+
+
 def run(cfg, args):
-    t0 = now_local(); today = t0.strftime("%Y-%m-%d")
+    t0 = now_local(); today = t0.strftime("%Y-%m-%d"); year = t0.year
     (ROOT / "data").mkdir(exist_ok=True)
-    con = db_open(ROOT / "data" / "scout.db")
-    if args.scheduled:
+    con = db_open(ROOT / "data" / "scout.db"); hs_market.init(con)
+    if args.scheduled and not (args.add_location or args.remove_location):
         # GitHub cron fires at 13:00 and 14:00 UTC (covers PDT and PST); only the first one at/after 6 AM Pacific runs.
         if t0.hour < 6 or already_ran_today(con, today):
             log.info("scheduled guard: skipping (local hour %d, already ran today=%s)", t0.hour, already_ran_today(con, today))
             gh_output("ran", "false"); return None
+
+    loc_path = ROOT / "locations.yaml"
+    loc_msgs = []
+    if args.remove_location: loc_msgs += hs_locations.remove(loc_path, args.remove_location)
+    if args.add_location: loc_msgs += hs_locations.add(loc_path, args.add_location)
+    for m in loc_msgs: log.info("locations: %s", m)
+    if args.locations_only: return None
+    areas = hs_locations.load(loc_path) or cfg.get("areas", [])
+
     first_run = con.execute("SELECT COUNT(*) FROM runs WHERE status='ok'").fetchone()[0] == 0
+    had_runs_before_today = con.execute("SELECT COUNT(*) FROM runs WHERE status='ok' AND substr(ts,1,10) < ?",
+                                        (today,)).fetchone()[0] > 0
     sc, fin = cfg["search"], cfg["finance"]
-    errors = []
+    errors = [f"Locations: {m}" for m in loc_msgs if m.startswith(("could not", "warning"))]
+    notices = [m for m in loc_msgs if not m.startswith(("could not", "warning"))]
 
     try: rate_info = fetch_rate()
     except Exception as e:
@@ -214,32 +204,42 @@ def run(cfg, args):
                      "prev_date": "", "source": "fallback (fetch failed)"}
     rate = fin.get("rate_override_pct") or rate_info["rate"]
 
-    listings, area_stats = [], []
-    initial_cut = (t0 - dt.timedelta(days=sc["initial_run_days"])).strftime("%Y-%m-%d")
+    new_cut = (t0 - dt.timedelta(days=sc["initial_run_days"] if first_run else sc.get("new_window_days", 7))).strftime("%Y-%m-%d")
+    card_cut = (t0 - dt.timedelta(days=sc.get("card_days", 30))).strftime("%Y-%m-%d")
     stale_cut = (t0 - dt.timedelta(days=cfg["report"].get("stale_fallback_days", 14))).strftime("%Y-%m-%d")
+    nb_cfg = cfg.get("developments", {}).get("new_builds", {})
+    listings, area_stats, new_builds = [], [], {}
     seen_ids = set(); n_ok = 0
-    for i, area in enumerate(cfg["areas"]):
-        city = area["city"]; stale = False
+
+    for i, area in enumerate(areas):
+        city = area["city"]; loc = area.get("location") or f"{city}, CA"; stale = False
+        area["county_info"] = county_info(cfg, area.get("county"))
         if i: time.sleep(sc.get("pause_between_cities_sec", 3))
-        rows = []
+        rows, active = [], []
         try:
-            recs = fetch_listings(city, sc["fetch_days"], sc, area.get("location"))
-            log.info("%s: %d listings fetched", city, len(recs)); n_ok += 1
+            recs = fetch_listings(loc, sc, "for_sale", sc.get("fetch_days"))
+            log.info("%s: %d active listings fetched", city, len(recs)); n_ok += 1
+            nb = []
             for rec in recs:
+                if not city_matches(rec, area): continue
                 L = build_listing(rec, area, cfg, rate)
                 if not L or L["id"] in seen_ids: continue
-                if s(rec.get("city")) and s(rec.get("city")).lower() != city.lower(): continue
-                seen_ids.add(L["id"]); rows.append(L)
-            for L in rows:
+                seen_ids.add(L["id"])
+                yb = L.get("year") or 0
+                if L["new_construction"] or yb >= year - nb_cfg.get("year_built_min_offset", 1):
+                    nb.append(dict(L, builder=s(rec.get("builder_name"))))
+                if lot_ok(L, sc): active.append(L)
+            nb.sort(key=lambda x: x.get("list_date") or "", reverse=True)
+            new_builds[city] = {"n": len(nb), "items": nb[: nb_cfg.get("max_per_city", 8)]}
+            for L in active:
                 prev = con.execute("SELECT first_seen, was_new FROM listings WHERE id=?", (L["id"],)).fetchone()
                 if prev is None:
                     L["first_seen"] = today
-                    L["is_new"] = (L["list_date"] >= initial_cut) if first_run else True
+                    L["is_new"] = (not L["list_date"]) or L["list_date"] >= new_cut
                 else:
                     L["first_seen"] = prev[0]
-                    L["is_new"] = prev[0] == today and bool(prev[1])  # same-day re-run keeps today's new ones
-                L["initial"] = L["is_new"] and (first_run or con.execute(
-                    "SELECT COUNT(*) FROM runs WHERE status='ok' AND substr(ts,1,10) < ?", (today,)).fetchone()[0] == 0)
+                    L["is_new"] = prev[0] == today and bool(prev[1])   # same-day re-run keeps today's new ones
+                L["initial"] = L["is_new"] and not had_runs_before_today
                 if not args.dry_run:
                     if prev is None:
                         con.execute("INSERT INTO listings VALUES(?,?,?,?,?,?,?,?)",
@@ -247,61 +247,109 @@ def run(cfg, args):
                     else:
                         con.execute("UPDATE listings SET last_seen=?, price=?, data=? WHERE id=?",
                                     (today, L["price"], json.dumps(L), L["id"]))
+            rows = [L for L in active if L["is_new"] or (L["list_date"] or "") >= card_cut]
         except Exception as e:
-            log.error("%s fetch failed: %s", city, e)
-            # graceful fallback: last known listings for this city
-            old = con.execute("SELECT data FROM listings WHERE city=? AND last_seen>=? ", (city, stale_cut)).fetchall()
-            for (d,) in old:
+            log.error("%s fetch failed: %s", city, e); stale = True
+            for (d,) in con.execute("SELECT data FROM listings WHERE city=? AND last_seen>=?", (city, stale_cut)).fetchall():
                 L = json.loads(d)
                 if L["id"] in seen_ids: continue
                 L.update(is_new=False, initial=False, stale=True); seen_ids.add(L["id"]); rows.append(L)
-            stale = True
-            errors.append(f"{city}: live fetch failed ({type(e).__name__}: {str(e)[:160]}). "
-                          f"Showing {len(rows)} last-known listing(s) instead.")
+            active = rows
+            errors.append(f"{city}: live fetch failed ({type(e).__name__}: {str(e)[:160]}). Showing {len(rows)} last-known listing(s).")
+
+        # recently sold comps
+        sold = None
+        if not stale and sc.get("sold_days"):
+            try:
+                srecs = [r for r in fetch_listings(loc, sc, "sold", sc["sold_days"]) if city_matches(r, area)]
+                sold = hs_market.sold_summary(srecs, today, sc.get("lot_sqft_min") if not sc.get("include_missing_lot_size") else None)
+                sold["all90"] = hs_market.sold_summary(srecs, today)[90]
+                log.info("%s: %d sold records (%d days)", city, len(srecs), sc["sold_days"])
+            except Exception as e:
+                log.warning("%s sold fetch failed: %s", city, e)
+
         listings += rows
-        prices = [L["price"] for L in rows]; ppsf = [L["ppsf"] for L in rows if L.get("ppsf")]
-        lots = [L["lot"] for L in rows if L.get("lot")]
-        area_stats.append({"area": area, "n_all": len(rows), "n_new": sum(bool(L.get("is_new")) for L in rows), "stale": stale,
-                           "median_price": statistics.median(prices) if prices else None,
-                           "median_ppsf": statistics.median(ppsf) if ppsf else None,
-                           "median_lot": statistics.median(lots) if lots else None})
+        st = {"area": area, "stale": stale, "n_cards": len(rows), "n_new": sum(bool(L.get("is_new")) for L in rows),
+              "n_active": len(active), "median_price": hs_market.med([L["price"] for L in active]),
+              "median_ppsf": hs_market.med([L.get("ppsf") for L in active]),
+              "median_dom": hs_market.med([L.get("dom") for L in active]),
+              "median_lot": hs_market.med([L.get("lot") for L in active]), "sold": sold}
+        if not stale and not args.dry_run:
+            hs_market.record(con, today, city, {"n_active": st["n_active"], "median_price": st["median_price"],
+                             "median_ppsf": st["median_ppsf"], "median_dom": st["median_dom"], "n_new": st["n_new"],
+                             "sold_n": sold[30]["n"] if sold else None, "sold_median": sold[30]["median"] if sold else None,
+                             "sold_ppsf": sold[30]["ppsf"] if sold else None})
+        area_stats.append(st)
+
+    # pricing trends from our own history
+    for st in area_stats:
+        c = st["area"]["city"]
+        hist = hs_market.history(con, c, 120)
+        st["hist_start"] = hs_market.first_date(con, c); st["hist_days"] = len(hist)
+        st["spark_price"] = hs_market.sparkline([h["median_price"] for h in hist])
+        st["spark_inv"] = hs_market.sparkline([h["n_active"] for h in hist])
+        st["chg"] = {m: {d: hs_market.change(con, c, m, today, d) for d in (30, 90)}
+                     for m in ("median_price", "median_ppsf", "n_active", "median_dom")}
 
     for L in listings:
-        county = cfg["counties"][L["county"]]
+        county = county_info(cfg, L.get("county"))
+        L["county_info"] = county
         L["fin"] = [dict(sc_, **monthly_cost(L["price"], sc_["down_pct"], sc_["type"], rate, fin, county, L.get("hoa") or 0))
                     for sc_ in fin["scenarios"]]
         L["myhome_amt"] = L["price"] * 0.035
         L.setdefault("stale", False)
         L["photo_src"] = embed_photo(L["photo"]) if (L["is_new"] and cfg["report"].get("embed_photos")) else L.get("photo", "")
+        L["search"] = " ".join([L.get("address", ""), L.get("city_line", ""), L.get("city", "")]).lower()
     listings.sort(key=lambda L: (not L["is_new"], L["price"]))
 
-    news = {}
-    if cfg["news"].get("enabled"):
-        for area in cfg["areas"]:
-            try: news[area["city"]] = city_news(area["city"], cfg)
-            except Exception as e:
-                log.warning("news %s failed: %s", area["city"], e); news[area["city"]] = []
+    # news: area headlines, developments, first-time buyer watch
+    news, devs, watch = {}, {}, []
+    nc = cfg["news"]; pause = nc.get("pause_sec", 0.6)
+    for area in areas:
+        nm = area.get("news_name") or area["city"]
+        excl = (nc.get("global_exclude") or []) + (area.get("news_exclude") or [])
+        if nc.get("enabled"):
+            items = hs_news.collect([(k, hs_news.with_excludes(q.format(city=nm), excl)) for k, q in nc["queries"].items()],
+                                    nc["days"], pause)
+            news[area["city"]] = hs_news.balance(items, nc["max_per_city"])
+        dc = cfg.get("developments", {})
+        if dc.get("enabled"):
+            items = hs_news.collect([(k, hs_news.with_excludes(q.format(city=nm), excl)) for k, q in dc["queries"]], dc["days"], pause)
+            region = [r.lower() for r in dc.get("region_terms", [])] + [f"{(area.get('county') or '').lower()} county"]
+            devs[area["city"]] = hs_news.dev_filter(items, nm, [k.lower() for k in dc["keywords"]],
+                                                    [x.lower() for x in dc.get("exclude", [])] +
+                                                    [x.lower() for x in (area.get("news_exclude") or [])], region)[: dc["max_per_city"]]
+    bw = cfg.get("buyer_watch", {})
+    if bw.get("enabled"):
+        items = hs_news.collect([tuple(q) for q in bw["queries"]], bw["days"], pause)
+        watch = [x for x in hs_news.score(items, bw["weights"], bw.get("negative", {})) if x["score"] > 3][: bw["show"]]
 
     status = "ok" if n_ok else "failed"
-    if not n_ok: errors.insert(0, "All listing fetches failed - showing last-known data only. New-listing tracking was not updated.")
-    ctx = dict(cfg=cfg, today=today, generated=t0.strftime("%a %b %d, %Y %I:%M %p PT"), rate=rate_info, used_rate=rate,
-               listings=listings, n_new=sum(bool(L["is_new"]) for L in listings), first_run=first_run,
-               area_stats=area_stats, news=news, errors=errors,
+    if areas and not n_ok:
+        errors.insert(0, "All listing fetches failed - showing last-known data only. New-listing tracking was not updated.")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    manage_url = f"https://github.com/{repo}/actions/workflows/scout.yml" if repo else None
+    ctx = dict(cfg=cfg, areas=areas, today=today, generated=t0.strftime("%a %b %d, %Y %I:%M %p PT"), rate=rate_info,
+               used_rate=rate, listings=listings, n_new=sum(bool(L["is_new"]) for L in listings), first_run=first_run,
+               area_stats=area_stats, news=news, devs=devs, new_builds=new_builds, watch=watch, errors=errors,
+               notices=notices, manage_url=manage_url,
                js_data=json.dumps({"listings": [{"id": L["id"], "city": L["city"], "price": L["price"], "beds": L["beds"],
                                                  "baths": L["baths"], "lot": L.get("lot"), "is_new": bool(L["is_new"]),
-                                                 "list_date": L.get("list_date", "")} for L in listings],
-                                   "defaults": cfg["view_defaults"], "cities": [a["city"] for a in cfg["areas"]]}))
+                                                 "list_date": L.get("list_date", ""), "q": L["search"]} for L in listings],
+                                   "defaults": cfg["view_defaults"]}))
     env = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html", "j2"]))
     env.filters["money"] = lambda v: "-" if v is None else f"${v:,.0f}"
     env.filters["intc"] = lambda v: "-" if v is None else f"{v:,.0f}"
+    env.filters["pct"] = lambda v: "-" if v is None else f"{v:+.1f}%"
     tpl = env.get_template("report.html.j2")
     html_out = tpl.render(email_mode=False, **ctx)
     rep_dir = ROOT / "reports"; rep_dir.mkdir(exist_ok=True)
     out = rep_dir / f"{today}.html"
     out.write_text(html_out, encoding="utf-8"); (rep_dir / "latest.html").write_text(html_out, encoding="utf-8")
-    for f in (ROOT / "web").glob("*"):          # manifest + icons next to the report (for "Add to Home Screen")
+    for f in (ROOT / "web").glob("*"):
         shutil.copy(f, rep_dir / f.name)
-    log.info("report written: %s (%d new / %d total listings, %d errors)", out, ctx["n_new"], len(listings), len(errors))
+    log.info("report written: %s (%d new / %d cards, %d errors, %d KB)", out, ctx["n_new"], len(listings), len(errors),
+             len(html_out) // 1024)
 
     if not args.dry_run:
         con.execute("INSERT INTO runs VALUES(?,?,?,?)", (t0.isoformat(), status, ctx["n_new"], str(out))); con.commit()
@@ -335,10 +383,17 @@ def send_email(cfg, body_html, attach_path, ctx):
 def main():
     ap = argparse.ArgumentParser(description="Home Scout daily digest")
     ap.add_argument("--config", default=str(ROOT / "config.yaml"))
-    ap.add_argument("--dry-run", action="store_true", help="don't update the seen-listings database")
+    ap.add_argument("--dry-run", action="store_true", help="don't update the database")
     ap.add_argument("--no-email", action="store_true")
     ap.add_argument("--scheduled", action="store_true", help="cron guard: run once per day, at/after 6 AM Pacific")
+    ap.add_argument("--add-location", action="append", default=[], metavar="LOC",
+                    help="add area(s): 'Brentwood, CA' or zip; comma-separated OK; repeatable")
+    ap.add_argument("--remove-location", action="append", default=[], metavar="LOC", help="remove area(s) by name or zip")
+    ap.add_argument("--locations-only", action="store_true", help="only update locations.yaml, don't run the scout")
     args = ap.parse_args()
+    # GitHub workflow inputs arrive via env (avoids shell-quoting issues)
+    if os.environ.get("HS_ADD_LOCATIONS", "").strip(): args.add_location.append(os.environ["HS_ADD_LOCATIONS"])
+    if os.environ.get("HS_REMOVE_LOCATIONS", "").strip(): args.remove_location.append(os.environ["HS_REMOVE_LOCATIONS"])
     (ROOT / "logs").mkdir(exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.FileHandler(ROOT / "logs" / "home-scout.log"), logging.StreamHandler()])

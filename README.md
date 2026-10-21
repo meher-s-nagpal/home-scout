@@ -20,9 +20,34 @@ Results are never filtered by price or affordability: every house that meets the
    If a city's fetch fails, the page still renders, with a red banner and that city's last-known listings.
 7. Optionally emails the digest (turned off by default).
 
+## Page sections
+- **Search box**: filters the listings by city, zip, or street across every area. Typing a search also shows listings that aren't new.
+- **Listings**: cards with the down-payment table (filters & sort are in the collapsible panel).
+- **📈 Pricing in this area**: per area, the current median list price, median $/sqft, active inventory, and median days on market, taken from
+  **all** active matching listings. The same numbers are saved daily in SQLite (`area_history` table), so 30- and 90-day change columns and SVG sparklines
+  fill in as history builds up. It also shows recently sold comps (Realtor.com sold records via HomeHarvest, last 30 and 90 days).
+- **🏗 New developments & new builds**: per area, development headlines from the last 14 days (Google News RSS, filtered by keyword rules:
+  a development word plus the city or a regional term, with obituaries, elections, etc. excluded), plus **new builds on the market**
+  (Realtor.com's new_construction flag, or built this year or last; any lot size; builder name when known).
+- **🎯 First-time buyer watch**: about 12 statewide news searches (rates, CalHFA/Dream For All, down-payment assistance, AC Boost, loan limits, C.A.R.
+  forecast, insurance, property tax, legislation), ranked by keyword weights in `config.yaml` → `buyer_watch.weights`. ★ marks the top ones.
+  There's also a static Resources box.
+- **📰 Area news & commute** and **📍 Locations** (drive times, plus an "Add or remove locations" button when hosted on GitHub).
+
+## Locations
+Areas live in `locations.yaml`. To add or remove them:
+- **Phone/GitHub:** open the page → 📍 Locations → **Add or remove locations** (or repo → Actions → Home Scout daily → **Run workflow**), fill in
+  `add_locations` (e.g. `Brentwood, CA, 95377`) and/or `remove_locations` (e.g. `Lathrop`), then Run. The workflow looks up the county (OpenStreetMap
+  Nominatim), works out no-traffic drive times to San José and Modesto (OSRM), commits `locations.yaml`, and republishes the page.
+- **Locally:** `python scout.py --add-location "Brentwood, CA" --remove-location "Lathrop"` (add `--locations-only` to skip the run).
+- A zip is searched as-is, and its label shows the main city, e.g. `95377 (Tracy)`. A city is searched as "City, CA" and only results whose city matches are kept.
+- `news_exclude` words per area cut news noise (e.g. Dublin → Ireland).
+
 ## Files
 | Path | Purpose |
 |---|---|
+| `locations.yaml` | Areas to search (added and removed by CLI or the workflow form) |
+| `hs_locations.py`, `hs_news.py`, `hs_market.py` | Locations/geocoding/drive times, news collection & ranking, pricing history & sold comps |
 | `config.yaml` | **Everything you can change**: areas, filters, down-payment scenarios, finance assumptions, loan/income limits, news queries, assistance programs |
 | `scout.py` | The program |
 | `templates/report.html.j2` | HTML report template (Jinja2) plus the in-page JavaScript |
@@ -48,7 +73,7 @@ Results are never filtered by price or affordability: every house that meets the
 ./run.sh --no-email
 ./run.sh --scheduled     # what GitHub uses: does nothing if it already ran today or it's before 6 AM Pacific
 ```
-A run takes about 1.5 minutes. Open `reports/latest.html` in any browser.
+A run takes about 2.5 minutes (16 listing calls and about 100 news queries). Open `reports/latest.html` in any browser.
 
 ## Email (optional, off by default)
 1. Turn on 2-Step Verification for Gmail, then create an App Password at https://myaccount.google.com/apppasswords

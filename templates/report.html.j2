@@ -47,24 +47,35 @@ details.flt>summary::-webkit-details-marker{display:none}details.flt>summary::af
 .areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:14px}
 .fail{color:var(--r);font-weight:600}.ok{color:var(--g);font-weight:600}
 details.more summary{cursor:pointer;color:var(--b);font-size:12px;margin-top:6px}
+details.sec{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12);margin:14px 0;overflow:hidden}
+details.sec>summary{list-style:none;padding:14px;cursor:pointer;font-weight:700;font-size:16px;display:flex;justify-content:space-between;gap:8px}
+details.sec>summary::-webkit-details-marker{display:none}details.sec>summary::after{content:"▾";color:var(--mut)}details.sec[open]>summary::after{content:"▴"}
+details.sec>.in{padding:0 14px 14px}.sum-note{font-weight:400;font-size:12px;color:var(--mut)}
+.sub2{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:12px}
+.box{border:1px solid #e3e7ec;border-radius:10px;padding:10px 12px}.box h3{margin-bottom:6px}
+.chg-up{color:var(--r)}.chg-down{color:var(--g)}.star{color:#e37400;font-weight:700}
+.search{width:100%;padding:10px 12px;font-size:16px;border:1px solid #ccc;border-radius:8px}
+.nb li{margin-bottom:4px}.pill{display:inline-block;background:#eef3fb;border-radius:10px;padding:1px 7px;font-size:11px;color:#174ea6}
 footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
 @media (max-width:600px){.wrap{padding:8px}.fbody label{flex:1 1 45%}.fbody input[type=number],.fbody select{width:100%}.fbody input[type=range]{width:100%}
  .price{font-size:21px}.kpi{flex:1 1 40%}.kpi b{font-size:18px}}
 </style></head><body>
 <header><div class="wrap" style="padding:0">
 <h1>🏡 {{ cfg.report.title }}</h1>
-<div class="sub">{{ generated }} · <b>{{ n_new }}</b> new{% if first_run %} (initial run: last {{ cfg.search.initial_run_days }} days){% endif %} · {{ listings|length }} active matches (last {{ cfg.search.fetch_days }} days)</div>
+<div class="sub">{{ generated }} · <b>{{ n_new }}</b> new{% if first_run %} (initial run: last {{ cfg.search.initial_run_days }} days){% endif %} · {{ listings|length }} listings shown (new + listed in last {{ cfg.search.card_days }} days)</div>
 <div class="kpis">
  <div class="kpi">30-yr fixed<b>{{ '%.2f'|format(rate.rate) }}%</b>
   {% if rate.change is not none %}<span class="small {{ 'up' if rate.change>0 else 'down' }}">{{ '%+.2f'|format(rate.change) }} vs {{ rate.prev_date }}</span>{% endif %}<div class="small">Freddie Mac, week of {{ rate.date }}</div></div>
  {% if used_rate != rate.rate %}<div class="kpi">Rate used (override)<b>{{ used_rate }}%</b></div>{% endif %}
- <div class="kpi">New today<b>{{ n_new }}</b><span class="small">across {{ cfg.areas|length }} cities</span></div>
+ <div class="kpi">New today<b>{{ n_new }}</b><span class="small">across {{ areas|length }} areas</span></div>
  <div class="kpi">Search<b style="font-size:13px">{{ cfg.search.beds_min }}+ bd · {{ cfg.search.baths_min }}+ ba · single-family · lot ≥ {{ cfg.search.lot_sqft_min|intc }} sf</b></div>
 </div></div></header>
 <div class="wrap">
 {% if errors %}<div class="card err"><b>⚠ Problems this run</b><ul class="small">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 
+{% if notices %}<div class="card" style="border-left:4px solid var(--g)"><b>Locations updated</b><ul class="small">{% for n in notices %}<li>{{ n }}</li>{% endfor %}</ul></div>{% endif %}
 {% if not email_mode %}
+<div class="card" style="padding:10px"><input class="search" id="q" type="search" placeholder="🔍 Search city, zip or street (e.g. 95391, Lennar, Elm St)" autocomplete="off"></div>
 <details class="card flt" id="fdet"><summary><span>⚙ Filters &amp; sort</span><span class="small mut" id="count"></span></summary>
 <div class="fbody" id="filters">
  <label>Min price<input type="number" id="pmin" step="25000" inputmode="numeric" placeholder="any"></label>
@@ -75,7 +86,7 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
  <label>Min lot: <span id="lotv"></span><input type="range" id="lot" min="{{ cfg.search.lot_sqft_min }}" max="30000" step="500"></label>
  <label>Sort<select id="sort"><option value="price_asc">Price ↑</option><option value="price_desc">Price ↓</option><option value="newest">Newest listed</option><option value="lot_desc">Biggest lot</option></select></label>
  <label class="chk"><input type="checkbox" id="newonly"> New only</label>
- <div class="cities">{% for a in cfg.areas %}<label><input type="checkbox" class="cb" value="{{ a.city }}" checked>{{ a.city }}</label>{% endfor %}</div>
+ <div class="cities">{% for a in areas %}<label><input type="checkbox" class="cb" value="{{ a.city }}" checked>{{ a.city }}</label>{% endfor %}</div>
 </div></details>
 {% endif %}
 
@@ -97,8 +108,8 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
   {% if over %}<div class="warn">⚠ {% for f in over %}{{ f.label }}: loan exceeds {{ L.county }} County {{ f.limit_label }}{% if not loop.last %}; {% endif %}{% endfor %}.</div>{% endif %}
   <details class="more"><summary>What's in the monthly estimate</summary><div class="small mut">
    {% set f = L.fin[1] %}e.g. {{ f.label }}: P&amp;I {{ f.pi|money }} · property tax {{ f.tax|money }} · insurance {{ f.ins|money }} · PMI/MIP {{ f.mi|money }} · HOA {{ f.hoa|money }} at {{ '%.2f'|format(used_rate) }}%. 3%/5%/10% include conventional PMI; FHA includes 1.75% upfront MIP financed + annual MIP. Excludes Mello-Roos.</div></details>
-  {% set c = cfg.counties[L.county] %}
-  <div class="info">CalHFA MyHome: up to ~{{ L.myhome_amt|money }} (3.5%) deferred 2nd loan. {{ L.county }} County program income limit {{ c.calhfa_income_limit|money }} · FHA limit {{ c.fha_limit|money }} · conforming {{ c.conforming_limit|money }}.</div>
+  {% set c = L.county_info %}
+  <div class="info">CalHFA MyHome: up to ~{{ L.myhome_amt|money }} (3.5%) deferred 2nd loan. {{ L.county }} County program income limit {{ c.calhfa_income_limit|money }} · FHA limit {{ c.fha_limit|money }} · conforming {{ c.conforming_limit|money }}{% if c.unverified %} <b>(county not in config - baseline limits, verify)</b>{% endif %}.</div>
   {% if L.mello %}<div class="warn">⚠ Possible Mello-Roos / CFD special tax ({% if L.year and L.year >= cfg.mello_roos.year_built_threshold %}built {{ L.year }}{% else %}common in {{ L.city }}{% endif %}). Not in the estimate; check the tax bill{% if L.tax_bill %} (last bill {{ L.tax_bill|money }}/yr){% endif %}.</div>{% endif %}
   <a class="btn" href="{{ L.url }}" target="_blank" rel="noopener">View on Realtor.com →</a>
  </div></div>
@@ -106,21 +117,65 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
 </div>
 <div class="card" id="empty" style="display:none">No listings match the current filters.</div>
 
-<h2 style="margin-top:22px">Areas</h2>
-<div class="areas">
+
+<details class="sec" open><summary><span>📈 Pricing in this area</span><span class="sum-note">active inventory, trends &amp; sold comps</span></summary><div class="in">
+<p class="small mut">From all active {{ cfg.search.beds_min }}+bd / {{ cfg.search.baths_min }}+ba single-family listings with lot ≥ {{ cfg.search.lot_sqft_min|intc }} sf (our own daily snapshots), plus Realtor.com recently-sold records. Trend columns fill in as daily history builds up.</p>
+<div class="sub2">
+{% for st in area_stats %}{% set a = st.area %}{% set sd = st.sold %}
+<div class="box"><h3>{{ a.city }} {% if st.stale %}<span class="fail small">(fetch failed)</span>{% endif %}</h3>
+<table class="small"><tr><th></th><th class="num">Now</th><th class="num">30d</th><th class="num">90d</th></tr>
+{% for key, label, fmt in [('median_price','Median list price','money'),('median_ppsf','Median $/sqft','money'),('n_active','Active inventory','intc'),('median_dom','Median days on market','intc')] %}
+<tr><td>{{ label }}</td><td class="num"><b>{% if fmt=='money' %}{{ st[key]|money }}{% else %}{{ st[key]|intc }}{% endif %}</b></td>
+{% for d in [30,90] %}{% set v = st.chg[key][d] %}<td class="num {{ '' if v is none else ('chg-up' if v>0 else 'chg-down') }}">{{ v|pct if v is not none else '·' }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<div class="small">{% if st.spark_price %}Median price trend {{ st.spark_price|safe }} · Inventory {{ st.spark_inv|safe }}{% else %}<span class="mut">History started {{ st.hist_start or today }} ({{ st.hist_days }} day{{ '' if st.hist_days==1 else 's' }}); sparklines appear after 2+ days, 30/90-day changes after 30/90 days.</span>{% endif %}</div>
+{% if sd %}<table class="small" style="margin-top:6px"><tr><th>Sold (lot ≥ {{ cfg.search.lot_sqft_min|intc }})</th><th class="num">#</th><th class="num">Median</th><th class="num">$/sqft</th></tr>
+<tr><td>Last 30 days</td><td class="num">{{ sd[30].n }}</td><td class="num">{{ sd[30].median|money }}</td><td class="num">{{ sd[30].ppsf|money }}</td></tr>
+<tr><td>Last 90 days</td><td class="num">{{ sd[90].n }}</td><td class="num">{{ sd[90].median|money }}</td><td class="num">{{ sd[90].ppsf|money }}</td></tr>
+<tr class="mut"><td>90d, any lot</td><td class="num">{{ sd.all90.n }}</td><td class="num">{{ sd.all90.median|money }}</td><td class="num">{{ sd.all90.ppsf|money }}</td></tr></table>
+{% else %}<p class="small mut">Sold comps unavailable this run.</p>{% endif %}
+</div>{% endfor %}
+</div></div></details>
+
+<details class="sec"><summary><span>🏗 New developments &amp; new builds</span><span class="sum-note">last {{ cfg.developments.days }} days</span></summary><div class="in">
+<div class="sub2">
+{% for a in areas %}{% set nb = new_builds.get(a.city) %}{% set dv = devs.get(a.city, []) %}
+<div class="box"><h3>{{ a.city }}</h3>
+{% if dv %}<ul class="news small">{% for n in dv %}<li><span class="cat">{{ n.cat|replace('_',' ') }}</span><a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a> <span class="mut">{{ n.source }} · {{ n.pub_str }}</span></li>{% endfor %}</ul>
+{% else %}<p class="small mut">No development headlines found in the last {{ cfg.developments.days }} days.</p>{% endif %}
+{% if nb and nb.n %}<div class="small"><b>New builds on the market</b> <span class="mut">({{ nb.n }} active; {{ cfg.search.beds_min }}+bd, any lot size; built {{ (today[:4]|int) - cfg.developments.new_builds.year_built_min_offset }}+ or flagged new construction)</span>
+<ul class="nb">{% for x in nb['items'] %}<li><a href="{{ x.url }}" target="_blank" rel="noopener">{{ x.address }}</a> · <b>{{ x.price|money }}</b> · {{ x.beds }}bd/{{ x.full_baths }}ba · {{ x.sqft|intc }} sf · lot {{ x.lot|intc }}{% if x.builder %} · <span class="pill">{{ x.builder }}</span>{% endif %}</li>{% endfor %}</ul></div>
+{% elif nb %}<p class="small mut">No new-construction listings right now.</p>{% endif %}
+</div>{% endfor %}
+</div></div></details>
+
+<details class="sec"><summary><span>🎯 First-time buyer watch</span><span class="sum-note">rates, programs, limits, market, insurance</span></summary><div class="in">
+{% if watch %}<ol class="news small">{% for n in watch %}<li>{% if n.score >= cfg.buyer_watch.highlight_score %}<span class="star">★ </span>{% endif %}<span class="cat">{{ n.cat }}</span><a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a> <span class="mut">{{ n.source }} · {{ n.pub_str }}</span></li>{% endfor %}</ol>
+<p class="small mut">Ranked by keyword rules (first-time buyer, CalHFA, down payment, loan limits, California, insurance…); ★ = most relevant.</p>
+{% else %}<p class="small mut">No matching headlines this run.</p>{% endif %}
+<div class="box"><h3>Resources</h3><ul class="small">{% for r in cfg.buyer_watch.resources %}<li><a href="{{ r[1] }}" target="_blank" rel="noopener">{{ r[0] }}</a></li>{% endfor %}</ul></div>
+<h3 style="margin-top:12px">Assistance programs (general info)</h3><ul class="small">{% for p in cfg.assistance %}<li><a href="{{ p.url }}" target="_blank" rel="noopener"><b>{{ p.name }}</b></a> - {{ p.detail }}</li>{% endfor %}</ul>
+</div></details>
+
+<details class="sec"><summary><span>📰 Area news &amp; commute</span><span class="sum-note">last {{ cfg.news.days }} days</span></summary><div class="in"><div class="sub2">
 {% for st in area_stats %}{% set a = st.area %}
-<div class="card{{ ' err' if st.stale }}"><h3>{{ a.city }} <span class="mut small">· {{ a.county }} County</span>{% if st.stale %} <span class="fail small">(fetch failed - last known data)</span>{% endif %}</h3>
-<div class="small">Drive, no traffic: San José <span class="{{ 'ok' if a.drive_min.san_jose <= cfg.commute.san_jose_target_min else 'fail' }}">{{ a.drive_min.san_jose }} min</span> · Modesto <span class="{{ 'ok' if a.drive_min.modesto <= cfg.commute.modesto_target_min else 'fail' }}">{{ a.drive_min.modesto }} min</span></div>
-<table style="margin:8px 0"><tr><td>New today</td><td class="num"><b>{{ st.n_new }}</b></td><td>Matches ({{ cfg.search.fetch_days }}d)</td><td class="num">{{ st.n_all }}</td></tr>
-<tr><td>Median price</td><td class="num">{{ st.median_price|money }}</td><td>Median $/sf</td><td class="num">{{ st.median_ppsf|money }}</td></tr>
-<tr><td>Median lot</td><td class="num">{{ st.median_lot|intc }} sf</td><td></td><td></td></tr></table>
+<div class="box"><h3>{{ a.city }} <span class="mut small">· {{ a.county }} County</span></h3>
+<div class="small">Drive, no traffic: San José <span class="{{ 'ok' if a.drive_min.san_jose <= cfg.commute.san_jose_target_min else 'fail' }}">{{ a.drive_min.san_jose }} min</span> · Modesto <span class="{{ 'ok' if a.drive_min.modesto <= cfg.commute.modesto_target_min else 'fail' }}">{{ a.drive_min.modesto }} min</span> · {{ st.n_new }} new · median lot {{ st.median_lot|intc }} sf</div>
 {% set items = news.get(a.city, []) %}{% if items %}<ul class="news small">{% for n in items %}<li><span class="cat">{{ n.cat }}</span><a href="{{ n.link }}" target="_blank" rel="noopener">{{ n.title }}</a> <span class="mut">{{ n.source }} · {{ n.pub_str }}</span></li>{% endfor %}</ul>
 {% else %}<p class="mut small">No local headlines in the last {{ cfg.news.days }} days.</p>{% endif %}
-<div class="small"><a href="https://www.greatschools.org/search/search.page?q={{ a.city|urlencode }}%2C%20CA" target="_blank" rel="noopener">Schools (GreatSchools)</a> · <a href="https://www.caschooldashboard.org/" target="_blank" rel="noopener">CA School Dashboard</a> · <a href="https://www.redfin.com/news/data-center/" target="_blank" rel="noopener">Redfin market data</a></div>
+<div class="small"><a href="https://www.greatschools.org/search/search.page?q={{ (a.news_name or a.city)|urlencode }}%2C%20CA" target="_blank" rel="noopener">Schools (GreatSchools)</a> · <a href="https://www.caschooldashboard.org/" target="_blank" rel="noopener">CA School Dashboard</a></div>
 </div>{% endfor %}
-</div>
+</div></div></details>
 
-<div class="card"><h2>First-time buyer assistance (general info)</h2><ul>{% for p in cfg.assistance %}<li><a href="{{ p.url }}" target="_blank" rel="noopener"><b>{{ p.name }}</b></a> - {{ p.detail }}</li>{% endfor %}</ul></div>
+<details class="sec"><summary><span>📍 Locations ({{ areas|length }})</span><span class="sum-note">add or remove areas</span></summary><div class="in">
+<table class="small"><tr><th>Area</th><th>County</th><th class="num">→ San José</th><th class="num">→ Modesto</th></tr>
+{% for a in areas %}<tr><td>{{ a.city }}{% if a.added %} <span class="pill">added {{ a.added }}</span>{% endif %}</td><td>{{ a.county }}{% if a.county_info and a.county_info.unverified %} ⚠{% endif %}</td>
+<td class="num {{ 'ok' if a.drive_min.san_jose <= cfg.commute.san_jose_target_min else 'fail' }}">{{ a.drive_min.san_jose }} min</td><td class="num {{ 'ok' if a.drive_min.modesto <= cfg.commute.modesto_target_min else 'fail' }}">{{ a.drive_min.modesto }} min</td></tr>{% endfor %}</table>
+<p class="small mut">No-traffic drive times (OSRM). Targets: ≤ {{ cfg.commute.san_jose_target_min }} min to San José, ≤ {{ cfg.commute.modesto_target_min }} min to Modesto.</p>
+{% if manage_url %}<a class="btn" href="{{ manage_url }}" target="_blank" rel="noopener">➕ Add or remove locations</a>
+<p class="small">Tap the button → <b>Run workflow</b> → type cities or zips in <i>add_locations</i> (e.g. <code>Brentwood, CA, 95377</code>) or <i>remove_locations</i> → Run. The page updates in ~3-5 min.</p>
+{% else %}<p class="small"><b>Add or remove locations:</b> locally run <code>python scout.py --add-location "Brentwood, CA" --remove-location "Lathrop"</code>. On GitHub, this button links to the workflow's <i>Run workflow</i> form.</p>{% endif %}
+</div></details>
 </div>
 <footer>Listings: Realtor.com data via HomeHarvest (personal use) · Rate: {{ rate.source }} · News: Google News RSS<br>Estimates only; confirm with a lender. Generated by plain Python, no AI.</footer>
 
@@ -133,7 +188,7 @@ const byId = Object.fromEntries(D.listings.map(l => [l.id, l]));
 const grid = $('grid'), cards = [...grid.querySelectorAll('.L')];
 function update(){
   const pmin = +$('pmin').value || 0, pmax = +$('pmax').value || Infinity, beds = +$('beds').value, baths = +$('baths').value, lot = +$('lot').value;
-  const newOnly = $('newonly').checked, sort = $('sort').value;
+  const newOnly = $('newonly').checked, sort = $('sort').value, q = $('q').value.trim().toLowerCase();
   const cities = new Set([...document.querySelectorAll('.cb:checked')].map(c => c.value));
   $('lotv').textContent = lot.toLocaleString() + ' sf'; $('pmaxv').textContent = isFinite(pmax) ? money(pmax) : 'any';
   const key = {price_asc: l => l.price, price_desc: l => -l.price, newest: l => -(Date.parse(l.list_date) || 0), lot_desc: l => -(l.lot || 0)}[sort];
@@ -143,7 +198,7 @@ function update(){
   cards.forEach(el => {
     const l = byId[el.dataset.id];
     const ok = l.price >= pmin && l.price <= pmax && l.beds >= beds && l.baths >= baths && (l.lot || 0) >= lot
-               && cities.has(l.city) && (!newOnly || l.is_new);
+               && cities.has(l.city) && (!newOnly || q || l.is_new) && (!q || q.split(/\s+/).every(w => l.q.includes(w)));
     el.style.display = ok ? '' : 'none'; if (ok) shown++;
   });
   $('count').textContent = `${shown} of ${D.listings.length} shown`; $('empty').style.display = shown ? 'none' : '';
@@ -155,7 +210,7 @@ function update(){
   if (window.matchMedia('(min-width: 900px)').matches) $('fdet').open = true;   // collapsed on phones
   $('pmaxr').addEventListener('input', e => { $('pmax').value = (+e.target.value >= +e.target.max) ? '' : e.target.value; update(); });
   $('pmax').addEventListener('input', e => { $('pmaxr').value = e.target.value || $('pmaxr').max; update(); });
-  $('pmin').addEventListener('input', update); $('lot').addEventListener('input', update);
+  $('pmin').addEventListener('input', update); $('q').addEventListener('input', update); $('lot').addEventListener('input', update);
   document.querySelectorAll('#filters select, #filters input[type=checkbox]').forEach(x => x.addEventListener('change', update));
   update();
 })();

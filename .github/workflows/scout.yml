@@ -6,7 +6,16 @@ on:
     # Both fire; scout.py --scheduled runs only once per Pacific day, at/after 6 AM.
     - cron: "0 13 * * *"
     - cron: "0 14 * * *"
-  workflow_dispatch: {}      # "Run workflow" button (works from the GitHub mobile app)
+  workflow_dispatch:         # "Run workflow" button (works from the GitHub mobile app)
+    inputs:
+      add_locations:
+        description: "Add locations (comma-separated cities or zips, e.g. Brentwood, CA, 95377)"
+        required: false
+        default: ""
+      remove_locations:
+        description: "Remove locations (comma-separated names or zips, e.g. Lathrop, 95377)"
+        required: false
+        default: ""
 
 permissions:
   contents: write            # commit data/scout.db back
@@ -42,16 +51,22 @@ jobs:
           HOME_SCOUT_SMTP_USER: ${{ secrets.HOME_SCOUT_SMTP_USER }}
           HOME_SCOUT_SMTP_PASSWORD: ${{ secrets.HOME_SCOUT_SMTP_PASSWORD }}
           HOME_SCOUT_EMAIL_TO: ${{ secrets.HOME_SCOUT_EMAIL_TO }}
+          # Location changes from the Run-workflow form (passed via env, never interpolated into the shell)
+          HS_ADD_LOCATIONS: ${{ github.event.inputs.add_locations }}
+          HS_REMOVE_LOCATIONS: ${{ github.event.inputs.remove_locations }}
         run: python scout.py ${{ github.event_name == 'schedule' && '--scheduled' || '' }}
 
-      - name: Commit listing state (new-listing tracking)
+      - name: Commit listing state + locations
         if: steps.scout.outputs.ran == 'true'
+        env:
+          HS_ADD_LOCATIONS: ${{ github.event.inputs.add_locations }}
+          HS_REMOVE_LOCATIONS: ${{ github.event.inputs.remove_locations }}
         run: |
           git config user.name  "home-scout-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/scout.db
+          git add data/scout.db locations.yaml
           if git diff --cached --quiet; then echo "no state change"; else
-            git commit -m "Home Scout state $(TZ=America/Los_Angeles date +%F)"
+            git commit -m "Home Scout state $(TZ=America/Los_Angeles date +%F)${HS_ADD_LOCATIONS:+ +[$HS_ADD_LOCATIONS]}${HS_REMOVE_LOCATIONS:+ -[$HS_REMOVE_LOCATIONS]}"
             git pull --rebase --quiet || true
             git push
           fi

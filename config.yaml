@@ -10,8 +10,11 @@ search:
   property_types: [single_family]
   exclude_pending: true
   include_missing_lot_size: false   # true = keep listings whose lot size is unknown
-  fetch_days: 30            # how far back each fetch looks (for market stats + catching missed runs)
+  fetch_days: null          # null = ALL active listings (needed for inventory/pricing stats); or a number of days
+  card_days: 30             # listing cards shown for listings listed within N days (plus anything new)
+  new_window_days: 7        # an unseen listing counts as NEW only if listed within N days (older unseen ones are recorded silently)
   initial_run_days: 7       # first run only: show listings from the last N days, marked "initial"
+  sold_days: 90             # recently sold comps window (HomeHarvest listing_type=sold)
   pause_between_cities_sec: 3
 
 # Default filters applied in the interactive page (you can change them live in the browser)
@@ -28,32 +31,7 @@ commute:
   modesto_target_min: 60
   note: "OSRM free-flow estimates; OSRM tends to run ~10-20% slower than Google Maps' no-traffic times."
 
-areas:                       # optional per-area "location" overrides the search string (zip, "City, CA", etc.)
-  - city: Livermore
-    county: Alameda
-    drive_min: {san_jose: 46, modesto: 61}
-  - city: Dublin
-    county: Alameda
-    drive_min: {san_jose: 42, modesto: 70}
-  - city: Pleasanton
-    county: Alameda
-    drive_min: {san_jose: 39, modesto: 71}
-  - city: San Ramon
-    county: Contra Costa
-    drive_min: {san_jose: 47, modesto: 77}
-  - city: Tracy
-    county: San Joaquin
-    drive_min: {san_jose: 71, modesto: 39}
-  - city: Mountain House
-    county: San Joaquin
-    location: "95391"          # optional search override; "Mountain House, CA" returns nothing on Realtor.com
-    drive_min: {san_jose: 69, modesto: 50}
-  - city: Lathrop
-    county: San Joaquin
-    drive_min: {san_jose: 84, modesto: 31}
-  - city: Manteca
-    county: San Joaquin
-    drive_min: {san_jose: 85, modesto: 23}
+# Areas live in locations.yaml (add/remove with --add-location / --remove-location or the GitHub workflow form).
 
 # 2026 one-unit loan limits (FHFA conforming / HUD FHA) and CalHFA income limits (eff. 2026-06-30).
 # Re-check every January (loan limits) and every June (CalHFA income limits).
@@ -61,6 +39,25 @@ counties:
   Alameda:      {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 322000}
   Contra Costa: {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 322000}
   San Joaquin:  {conforming_limit: 832750,  fha_limit: 678500,  calhfa_income_limit: 214000}
+  # extra counties so newly added locations get correct limits
+  Santa Clara:  {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 325000}
+  San Mateo:    {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 325000}
+  San Francisco: {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 325000}
+  Marin:        {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 325000}
+  San Benito:   {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 277000}
+  Santa Cruz:   {conforming_limit: 1249125, fha_limit: 1249125, calhfa_income_limit: 271000}
+  Monterey:     {conforming_limit: 994750,  fha_limit: 994750,  calhfa_income_limit: 218000}
+  Napa:         {conforming_limit: 1017750, fha_limit: 1017750, calhfa_income_limit: 325000}
+  Sonoma:       {conforming_limit: 897000,  fha_limit: 897000,  calhfa_income_limit: 264000}
+  Stanislaus:   {conforming_limit: 832750,  fha_limit: 545100,  calhfa_income_limit: 195000}
+  Merced:       {conforming_limit: 832750,  fha_limit: 541287,  calhfa_income_limit: 192000}
+  Sacramento:   {conforming_limit: 832750,  fha_limit: 764750,  calhfa_income_limit: 245000}
+  Placer:       {conforming_limit: 832750,  fha_limit: 764750,  calhfa_income_limit: 245000}
+  El Dorado:    {conforming_limit: 832750,  fha_limit: 764750,  calhfa_income_limit: 245000}
+  Solano:       {conforming_limit: 832750,  fha_limit: 685400,  calhfa_income_limit: 246000}
+  Calaveras:    {conforming_limit: 832750,  fha_limit: 541287,  calhfa_income_limit: 203000}
+  Amador:       {conforming_limit: 832750,  fha_limit: 541287,  calhfa_income_limit: 218000}
+  _default:     {conforming_limit: 832750,  fha_limit: 541287,  calhfa_income_limit: null, unverified: true}
 
 finance:
   rate_override_pct: null       # null = use latest Freddie Mac 30-yr (FRED MORTGAGE30US)
@@ -86,14 +83,104 @@ mello_roos:
   likely_cities: [Mountain House, Lathrop]   # whole-city flag (many CFDs)
 
 news:
+  global_exclude: [obituary, funeral]   # appended to every area news/development query as -word
   enabled: true
   days: 3
   max_per_city: 10
+  pause_sec: 0.6
   queries:                       # {city} is replaced by the city name
     housing: '"{city}" CA housing OR homes OR real estate'
     development: '"{city}" CA development OR construction OR city council'
     schools: '"{city}" CA schools OR school district'
     safety: '"{city}" CA police OR crime'
+
+developments:
+  enabled: true
+  days: 14
+  max_per_city: 8
+  queries:                       # {city} -> area news_name; per-area news_exclude words are appended as -word
+    - [new_homes,   '"{city}" CA new homes']
+    - [development, '"{city}" CA housing development']
+    - [approved,    '"{city}" CA housing project approved']
+    - [planning,    '"{city}" planning commission homes']
+    - [construction, 'new construction "{city}" CA']
+    - [builder,     '"{city}" CA Lennar OR "Toll Brothers" OR "Shea Homes" OR "KB Home" OR Pulte OR "DR Horton"']
+  # headline must contain one of these AND the city name (or a regional term like Tri-Valley / San Joaquin / county name)
+  keywords: [new homes, housing, homes, home builder, homebuilder, subdivision, " units", apartment, townhome, acres,
+             residential, specific plan, annex, rezon, planning commission, affordable housing, development project,
+             housing project, master plan, lennar, toll brothers, shea homes, kb home, pulte, horton, tri pointe,
+             taylor morrison, new construction, groundbreaking, grand opening, model homes]
+  exclude: [obituary, obit, funeral, " sold ", "sale closed", "for sale", candidate, ballot, election, real estate experts]
+  region_terms: [tri-valley, east bay, bay area, san joaquin, central valley, contra costa, alameda county, east county]
+  new_builds:
+    year_built_min_offset: 1     # year_built >= this year - 1 counts as a new build (also Realtor's new_construction flag)
+    max_per_city: 8
+
+buyer_watch:
+  enabled: true
+  days: 14
+  show: 10
+  highlight_score: 10
+  queries:
+    - [rates,      'mortgage rates forecast']
+    - [rates,      'mortgage rates this week Freddie Mac']
+    - [calhfa,     'CalHFA OR "Dream For All"']
+    - [assistance, 'California down payment assistance first-time homebuyer']
+    - [assistance, '"AC Boost" OR "Alameda County" down payment assistance']
+    - [assistance, '"San Joaquin County" homebuyer assistance']
+    - [limits,     'FHA loan limits 2027 OR conforming loan limit 2027']
+    - [market,     'California housing market forecast C.A.R.']
+    - [market,     'Bay Area housing market OR Central Valley housing market']
+    - [insurance,  'California home insurance FAIR Plan']
+    - [tax,        'California property tax homeowners OR first-time homebuyer tax credit']
+    - [policy,     'first-time homebuyer bill California legislature']
+  weights:
+    "first-time": 5
+    "first time": 5
+    "calhfa": 6
+    "dream for all": 6
+    "down payment": 4
+    "assistance": 2
+    "mortgage rate": 4
+    "rates": 1
+    "fha": 3
+    "loan limit": 4
+    "conforming": 3
+    "california": 3
+    "bay area": 3
+    "alameda": 3
+    "san joaquin": 3
+    "tri-valley": 3
+    "central valley": 2
+    "housing market": 2
+    "forecast": 2
+    "outlook": 2
+    "c.a.r.": 3
+    "realtors": 1
+    "home insurance": 3
+    "fair plan": 3
+    "property tax": 3
+    "tax credit": 3
+    "legislation": 1
+    " bill ": 1
+    "homebuyer": 2
+    "affordab": 1
+    "ac boost": 6
+  negative:
+    "refinanc": 2
+    "commercial real estate": 3
+    "stock": 2
+  resources:
+    - [CalHFA homebuyer programs, https://www.calhfa.ca.gov/homebuyer/programs/index.htm]
+    - [Dream For All (next round info), https://www.calhfa.ca.gov/dream/]
+    - [HUD-approved housing counselor finder, https://www.hud.gov/findacounselor]
+    - [AC Boost (Alameda County DPA), https://www.acboost.org/]
+    - [San Joaquin County GAP loan (Tracy, Manteca, Lathrop, Ripon, Escalon), https://www.sjchsa.org/Community-and-Family-Services/Neighborhood-Preservation/GAP-Program]
+    - [Freddie Mac weekly mortgage rates, https://www.freddiemac.com/pmms]
+    - [FHFA conforming loan limits, https://www.fhfa.gov/data/conforming-loan-limit]
+    - [HUD FHA loan limits lookup, https://entp.hud.gov/idapp/fhagov/hicostlook.cfm]
+    - [C.A.R. market data, https://www.car.org/marketdata]
+    - [CA Dept. of Insurance (home insurance), https://www.insurance.ca.gov/]
 
 assistance:                      # shown in every report; edit as programs change
   - name: CalHFA MyHome Assistance
@@ -108,9 +195,12 @@ assistance:                      # shown in every report; edit as programs chang
   - name: CalHFA income limits (all counties)
     detail: "Alameda & Contra Costa $322,000; San Joaquin $214,000 (eff. 6/30/2026)."
     url: https://www.calhfa.ca.gov/homeownership/limits/income/income.pdf
-  - name: Local programs to check
-    detail: "City/county first-time buyer & down-payment programs change often (Alameda County HCD, Livermore/Pleasanton/Dublin housing divisions, San Joaquin County & Tracy/Manteca/Lathrop housing programs, GSFA Platinum). Verify current funding before relying on any."
-    url: https://www.calhfa.ca.gov/homebuyer/
+  - name: AC Boost (Alameda County)
+    detail: "Shared-appreciation DPA up to $210,000 (lottery; pre-applications closed 5/15/2024; latest workshop window 3/25-4/24/2026). Watch for a new funding cycle."
+    url: https://www.acboost.org/
+  - name: San Joaquin County GAP loan
+    detail: "Deferred DPA, 20% of price up to $40,000, low-income first-time buyers in unincorporated county, Tracy, Manteca, Lathrop, Ripon, Escalon."
+    url: https://www.sjchsa.org/Community-and-Family-Services/Neighborhood-Preservation/GAP-Program
 
 report:
   title: "Home Scout - Tri-Valley & South San Joaquin"

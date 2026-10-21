@@ -1,0 +1,90 @@
+# Areas Home Scout searches. Edit by hand, or use:
+#   python scout.py --add-location 'Brentwood, CA' --remove-location 'Lathrop'
+#   (or the GitHub Actions 'Run workflow' form: add_locations / remove_locations)
+# Fields: city (label), county (for loan limits), location (search string; zip or 'City, CA'),
+#   match_city (keep only results whose city equals the label), news_name (name used in news queries),
+#   drive_min (no-traffic minutes to downtown San Jose / Modesto via OSRM), lat/lon.
+areas:
+- city: Livermore
+  county: Alameda
+  location: Livermore, CA
+  match_city: true
+  news_name: Livermore
+  drive_min:
+    san_jose: 46
+    modesto: 61
+  lat: 37.6819
+  lon: -121.768
+- city: Dublin
+  county: Alameda
+  location: Dublin, CA
+  match_city: true
+  news_name: Dublin
+  news_exclude: [Ireland, Irish, Fingal, Kildare, Meath, Leinster, "Co. Dublin", Ohio]
+  drive_min:
+    san_jose: 42
+    modesto: 70
+  lat: 37.7022
+  lon: -121.9358
+- city: Pleasanton
+  county: Alameda
+  location: Pleasanton, CA
+  match_city: true
+  news_name: Pleasanton
+  drive_min:
+    san_jose: 39
+    modesto: 71
+  lat: 37.6624
+  lon: -121.8747
+- city: San Ramon
+  county: Contra Costa
+  location: San Ramon, CA
+  match_city: true
+  news_name: San Ramon
+  news_exclude: [Philippines, Mexico]
+  drive_min:
+    san_jose: 47
+    modesto: 77
+  lat: 37.7799
+  lon: -121.978
+- city: Tracy
+  county: San Joaquin
+  location: Tracy, CA
+  match_city: true
+  news_name: Tracy
+  news_exclude: [Mathis, Morgan, Chapman, Jordan, Anderson, Georgia, Bluefield]
+  drive_min:
+    san_jose: 71
+    modesto: 39
+  lat: 37.7397
+  lon: -121.4252
+- city: Mountain House
+  county: San Joaquin
+  location: '95391'
+  match_city: true
+  news_name: Mountain House
+  drive_min:
+    san_jose: 69
+    modesto: 50
+  lat: 37.7833
+  lon: -121.5427
+- city: Lathrop
+  county: San Joaquin
+  location: Lathrop, CA
+  match_city: true
+  news_name: Lathrop
+  drive_min:
+    san_jose: 84
+    modesto: 31
+  lat: 37.8227
+  lon: -121.2766
+- city: Manteca
+  county: San Joaquin
+  location: Manteca, CA
+  match_city: true
+  news_name: Manteca
+  drive_min:
+    san_jose: 85
+    modesto: 23
+  lat: 37.7974
+  lon: -121.2161
