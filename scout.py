@@ -95,9 +95,9 @@ def _rate_rows_freddie():
     return out, "Freddie Mac PMMS (freddiemac.com), weekly"
 
 def fetch_rate():
-    """Latest 30-yr fixed: FRED, then Freddie Mac's own CSV (each tried twice)."""
+    """Latest 30-yr fixed: Freddie Mac PMMS CSV, then FRED (each tried twice)."""
     last = None
-    for fn in (_rate_rows_fred, _rate_rows_freddie):
+    for fn in (_rate_rows_freddie, _rate_rows_fred):   # FRED times out from GitHub runners
         for attempt in range(2):
             try:
                 rows, src = fn()
