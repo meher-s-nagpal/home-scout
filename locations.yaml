@@ -3,7 +3,8 @@
 #   (or the GitHub Actions 'Run workflow' form: add_locations / remove_locations)
 # Fields: city (label), county (for loan limits), location (search string; zip or 'City, CA'),
 #   match_city (keep only results whose city equals the label), news_name (name used in news queries),
-#   drive_min (no-traffic minutes to downtown San Jose / Modesto via OSRM), lat/lon.
+#   drive_min (no-traffic minutes to downtown San Jose / Modesto via OSRM), lat/lon,
+#   region (which news module it feeds: Tri-Valley / Altamont / Other; see config.yaml regions).
 areas:
 - city: Livermore
   county: Alameda
@@ -125,3 +126,15 @@ areas:
   lon: -121.8617697
   added: '2026-10-20'
   region: Tri-Valley
+- city: Modesto
+  county: Stanislaus
+  location: Modesto, CA
+  match_city: true
+  news_name: Modesto
+  drive_min:
+    san_jose: 104
+    modesto: 0
+  lat: 37.6393419
+  lon: -120.9968892
+  region: Other
+  added: '2026-10-21'
