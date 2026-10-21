@@ -20,7 +20,15 @@ areas:
   location: Dublin, CA
   match_city: true
   news_name: Dublin
-  news_exclude: [Ireland, Irish, Fingal, Kildare, Meath, Leinster, "Co. Dublin", Ohio]
+  news_exclude:
+  - Ireland
+  - Irish
+  - Fingal
+  - Kildare
+  - Meath
+  - Leinster
+  - Co. Dublin
+  - Ohio
   drive_min:
     san_jose: 42
     modesto: 70
@@ -41,7 +49,9 @@ areas:
   location: San Ramon, CA
   match_city: true
   news_name: San Ramon
-  news_exclude: [Philippines, Mexico]
+  news_exclude:
+  - Philippines
+  - Mexico
   drive_min:
     san_jose: 47
     modesto: 77
@@ -52,7 +62,14 @@ areas:
   location: Tracy, CA
   match_city: true
   news_name: Tracy
-  news_exclude: [Mathis, Morgan, Chapman, Jordan, Anderson, Georgia, Bluefield]
+  news_exclude:
+  - Mathis
+  - Morgan
+  - Chapman
+  - Jordan
+  - Anderson
+  - Georgia
+  - Bluefield
   drive_min:
     san_jose: 71
     modesto: 39
@@ -88,3 +105,14 @@ areas:
     modesto: 23
   lat: 37.7974
   lon: -121.2161
+- city: 94568 (Dublin)
+  county: Alameda
+  location: '94568'
+  match_city: false
+  news_name: Dublin
+  drive_min:
+    san_jose: 48
+    modesto: 68
+  lat: 37.7187828
+  lon: -121.8617697
+  added: '2026-10-20'
