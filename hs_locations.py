@@ -23,7 +23,7 @@ def save(path, areas):
            "#   (or the GitHub Actions 'Run workflow' form: add_locations / remove_locations)\n"
            "# Fields: city (label), county (for loan limits), location (search string; zip or 'City, CA'),\n"
            "#   match_city (keep only results whose city equals the label), news_name (name used in news queries),\n"
-           "#   drive_min (no-traffic minutes to downtown San Jose / Modesto via OSRM), lat/lon.\n")
+           "#   drive_min (no-traffic minutes to downtown San Jose / Modesto via OSRM), lat/lon,\n#   region (which news module it feeds: Tri-Valley / Altamont / Other; see config.yaml regions).\n")
     Path(path).write_text(hdr + yaml.safe_dump({"areas": areas}, sort_keys=False, allow_unicode=True))
 
 def parse_values(values):
@@ -83,6 +83,18 @@ def drive_minutes(lat, lon):
     d = r.json()["durations"][0]
     return {"san_jose": round(d[1] / 60), "modesto": round(d[2] / 60)}
 
+def assign_region(area, regions):
+    """First region whose center is within radius_km of the location; else 'Other'."""
+    import math
+    lat, lon = area.get("lat"), area.get("lon")
+    for r in regions or []:
+        c = r.get("center")
+        if not c or lat is None: continue
+        dlat, dlon = math.radians(lat - c[0]), math.radians(lon - c[1])
+        h = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat)) * math.cos(math.radians(c[0])) * math.sin(dlon / 2) ** 2
+        if 6371 * 2 * math.asin(math.sqrt(h)) <= r.get("radius_km", 0): return r["name"]
+    return "Other"
+
 def _key(s):
     return re.sub(r"[^a-z0-9]", "", re.sub(r",\s*(ca|california)$", "", s.strip().lower()))
 
@@ -94,7 +106,7 @@ def find(areas, value):
         if k in keys: return a
     return None
 
-def add(path, values):
+def add(path, values, regions=None):
     areas = load(path); msgs = []
     for v in parse_values(values):
         if find(areas, v): msgs.append(f"'{v}' is already in locations"); continue
@@ -105,10 +117,11 @@ def add(path, values):
             g["drive_min"] = drive_minutes(g["lat"], g["lon"])
             g.pop("state", None)
             area = {k: g[k] for k in ("city", "county", "location", "match_city", "news_name", "drive_min", "lat", "lon")}
+            area["region"] = assign_region(area, regions)
             area["added"] = time.strftime("%Y-%m-%d")
             areas.append(area)
             msgs.append(f"added {area['city']} ({area['county']} County): {area['drive_min']['san_jose']} min to San Jose, "
-                        f"{area['drive_min']['modesto']} min to Modesto (no traffic)")
+                        f"{area['drive_min']['modesto']} min to Modesto (no traffic); region {area['region']}")
         except Exception as e:
             msgs.append(f"could not add '{v}': {e}")
     save(path, areas)

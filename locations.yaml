@@ -15,6 +15,7 @@ areas:
     modesto: 61
   lat: 37.6819
   lon: -121.768
+  region: Tri-Valley
 - city: Dublin
   county: Alameda
   location: Dublin, CA
@@ -34,6 +35,7 @@ areas:
     modesto: 70
   lat: 37.7022
   lon: -121.9358
+  region: Tri-Valley
 - city: Pleasanton
   county: Alameda
   location: Pleasanton, CA
@@ -44,6 +46,7 @@ areas:
     modesto: 71
   lat: 37.6624
   lon: -121.8747
+  region: Tri-Valley
 - city: San Ramon
   county: Contra Costa
   location: San Ramon, CA
@@ -57,6 +60,7 @@ areas:
     modesto: 77
   lat: 37.7799
   lon: -121.978
+  region: Tri-Valley
 - city: Tracy
   county: San Joaquin
   location: Tracy, CA
@@ -75,6 +79,7 @@ areas:
     modesto: 39
   lat: 37.7397
   lon: -121.4252
+  region: Altamont
 - city: Mountain House
   county: San Joaquin
   location: '95391'
@@ -85,6 +90,7 @@ areas:
     modesto: 50
   lat: 37.7833
   lon: -121.5427
+  region: Altamont
 - city: Lathrop
   county: San Joaquin
   location: Lathrop, CA
@@ -95,6 +101,7 @@ areas:
     modesto: 31
   lat: 37.8227
   lon: -121.2766
+  region: Altamont
 - city: Manteca
   county: San Joaquin
   location: Manteca, CA
@@ -105,6 +112,7 @@ areas:
     modesto: 23
   lat: 37.7974
   lon: -121.2161
+  region: Altamont
 - city: 94568 (Dublin)
   county: Alameda
   location: '94568'
@@ -116,3 +124,4 @@ areas:
   lat: 37.7187828
   lon: -121.8617697
   added: '2026-10-20'
+  region: Tri-Valley

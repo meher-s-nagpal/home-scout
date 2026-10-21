@@ -145,6 +145,22 @@ def db_open(path):
 
 
 # ----------------------------------------------------------------- build
+def hires(u):
+    """Realtor.com (rdcpix) photos: ask for the 1024x768 variant instead of 480x360 (capped by w=1080)."""
+    if not u or "rdcpix.com" not in u: return u
+    u = re.sub(r"od-w480_h360", "od-w1024_h768", u)
+    return re.sub(r"(-m\d+)s\.jpg$", r"\1od-w1024_h768.jpg", u)
+
+def photo_list(rec, cfg):
+    urls = [s(rec.get("primary_photo"))] + [x.strip() for x in s(rec.get("alt_photos")).split(",")]
+    out, seen = [], set()
+    for u in urls:
+        if not u.startswith("http"): continue
+        k = re.sub(r"od-w\d+_h\d+.*$|s\.jpg$", "", u)
+        if k in seen: continue
+        seen.add(k); out.append(hires(u))
+    return out[: cfg["report"].get("max_photos", 15)]
+
 def build_listing(rec, area, cfg, rate):
     lid = s(rec.get("property_id")) or s(rec.get("listing_id")) or s(rec.get("property_url"))
     price = num(rec.get("list_price"))
@@ -159,7 +175,7 @@ def build_listing(rec, area, cfg, rate):
         "id": lid, "city": area["city"], "county": area["county"], "url": s(rec.get("property_url")),
         "address": s(rec.get("full_street_line")) or s(rec.get("street")),
         "city_line": f"{s(rec.get('city'))}, {s(rec.get('state'))} {s(rec.get('zip_code'))}",
-        "photo": s(rec.get("primary_photo")), "price": price,
+        "photo": hires(s(rec.get("primary_photo"))), "photos": photo_list(rec, cfg), "price": price,
         "beds": int(num(rec.get("beds")) or 0), "full_baths": int(full), "half_baths": int(half),
         "baths": full + 0.5 * half, "sqft": sqft, "lot": lot, "year": int(yb) if yb else None,
         "hoa": num(rec.get("hoa_fee")) or 0.0, "dom": num(rec.get("days_on_mls")), "list_date": ld,
@@ -205,10 +221,12 @@ def run(cfg, args):
     loc_path = ROOT / "locations.yaml"
     loc_msgs = []
     if args.remove_location: loc_msgs += hs_locations.remove(loc_path, args.remove_location)
-    if args.add_location: loc_msgs += hs_locations.add(loc_path, args.add_location)
+    if args.add_location: loc_msgs += hs_locations.add(loc_path, args.add_location, cfg.get("regions"))
     for m in loc_msgs: log.info("locations: %s", m)
     if args.locations_only: return None
     areas = hs_locations.load(loc_path) or cfg.get("areas", [])
+    for a in areas:
+        if not a.get("region"): a["region"] = hs_locations.assign_region(a, cfg.get("regions"))
 
     first_run = con.execute("SELECT COUNT(*) FROM runs WHERE status='ok'").fetchone()[0] == 0
     had_runs_before_today = con.execute("SELECT COUNT(*) FROM runs WHERE status='ok' AND substr(ts,1,10) < ?",
@@ -328,6 +346,14 @@ def run(cfg, args):
         L["myhome_amt"] = L["price"] * 0.035
         L.setdefault("stale", False)
         L["photo_src"] = embed_photo(L["photo"]) if (L["is_new"] and cfg["report"].get("embed_photos")) else L.get("photo", "")
+        L["photos"] = L.get("photos") or ([L["photo"]] if L.get("photo") else [])
+        # compact photo encoding for the page: common prefix/suffix + the varying middle parts (JS rebuilds the <img>s)
+        ph = L["photos"]
+        pre = os.path.commonprefix(ph) if len(ph) > 1 else ""
+        suf = os.path.commonprefix([u[len(pre):][::-1] for u in ph])[::-1] if len(ph) > 1 else ""
+        L["ph_pre"], L["ph_suf"] = pre, suf
+        L["ph_mid"] = "|".join(u[len(pre): len(u) - len(suf)] for u in ph[1:]) if len(ph) > 1 else ""
+        if L["photo_src"] and L["photo_src"].startswith("data:"): L["photos"] = [L["photo_src"]] + L["photos"][1:]
         L["search"] = " ".join([L.get("address", ""), L.get("city_line", ""), L.get("city", "")]).lower()
     listings.sort(key=lambda L: (not L["is_new"], L["price"]))
 
@@ -353,6 +379,23 @@ def run(cfg, args):
         items = hs_news.collect([tuple(q) for q in bw["queries"]], bw["days"], pause)
         watch = [x for x in hs_news.score(items, bw["weights"], bw.get("negative", {})) if x["score"] > 3][: bw["show"]]
 
+    modules = []
+    nm_cfg = cfg.get("news_modules", {})
+    if nm_cfg.get("enabled"):
+        hs_news.cache_init(con)
+        for r in cfg.get("regions", []):
+            ra = [a for a in areas if a.get("region") == r["name"]]
+            if not ra: continue
+            try:
+                cards = hs_news.region_module(con, r, ra, nm_cfg, pause, nm_cfg.get("page_timeout_sec", 8))
+            except Exception as e:
+                log.warning("news module %s failed: %s", r["name"], e); cards = []
+            modules.append({"name": r["name"], "title": r.get("title") or f"{r['name']} News", "cards": cards,
+                            "cities": [a["city"] for a in ra]})
+            log.info("news module %s: %d cards (%d with publisher summaries)", r["name"], len(cards),
+                     sum(c["summary_src"] == "publisher" for c in cards))
+        con.commit()
+
     status = "ok" if n_ok else "failed"
     if areas and not n_ok:
         errors.insert(0, "All listing fetches failed - showing last-known data only. New-listing tracking was not updated.")
@@ -360,11 +403,18 @@ def run(cfg, args):
     manage_url = f"https://github.com/{repo}/actions/workflows/scout.yml" if repo else None
     ctx = dict(cfg=cfg, areas=areas, today=today, generated=t0.strftime("%a %b %d, %Y %I:%M %p PT"), rate=rate_info,
                used_rate=rate, listings=listings, n_new=sum(bool(L["is_new"]) for L in listings), first_run=first_run,
-               area_stats=area_stats, news=news, devs=devs, new_builds=new_builds, watch=watch, errors=errors,
+               area_stats=area_stats, news=news, devs=devs, modules=modules, new_builds=new_builds, watch=watch, errors=errors,
                notices=notices, manage_url=manage_url,
                js_data=json.dumps({"listings": [{"id": L["id"], "city": L["city"], "price": L["price"], "beds": L["beds"],
                                                  "baths": L["baths"], "lot": L.get("lot"), "is_new": bool(L["is_new"]),
-                                                 "list_date": L.get("list_date", ""), "q": L["search"]} for L in listings],
+                                                 "list_date": L.get("list_date", ""), "q": L["search"],
+                                                 # snapshot fields for Favorites (photos are read from the card)
+                                                 "addr": L.get("address", ""), "cl": L.get("city_line", ""), "url": L.get("url", ""),
+                                                 "sqft": L.get("sqft"), "fb": L.get("full_baths"), "hb": L.get("half_baths"),
+                                                 "year": L.get("year"), "hoa": L.get("hoa"), "county": L.get("county"),
+                                                 "fin": [[f["label"], round(f["down"]), round(f["loan"]), round(f["total"]), bool(f["over_limit"])]
+                                                         for f in L["fin"]]} for L in listings],
+                                   "today": today, "rate": rate,
                                    "defaults": cfg["view_defaults"]}))
     env = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html", "j2"]))
     env.filters["money"] = lambda v: "-" if v is None else f"${v:,.0f}"

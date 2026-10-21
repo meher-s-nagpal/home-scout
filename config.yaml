@@ -205,9 +205,115 @@ assistance:                      # shown in every report; edit as programs chang
 report:
   title: "Home Scout - Tri-Valley & South San Joaquin"
   embed_photos: false            # true = embed new-listing photos as base64 (bigger file, works offline); false = remote photo URLs
+  max_photos: 15                 # photos per listing carousel (lazy-loaded)
   stale_fallback_days: 14        # if a city's fetch fails, show its last-known listings seen within N days
 
 email:
   enabled: false                 # also needs env vars, see README (.env)
   subject_prefix: "Home Scout"
   attach_html: true
+
+# ---- Region news modules at the top of the page (one carousel per region present in locations.yaml) ----
+regions:                         # new locations get the first region whose center is within radius_km, else "Other"
+  - name: Tri-Valley
+    title: "Tri-Valley News"
+    center: [37.70, -121.87]
+    radius_km: 22
+    terms: ["Tri-Valley"]
+    local_outlets: [pleasantonweekly.com, independentnews.com, danvillesanramon.com]   # trusted as local even if the city isn't named
+    site_queries:               # local outlets (Google News "site:" search)
+      - 'site:pleasantonweekly.com housing OR homes OR development OR "planning commission"'
+      - 'site:independentnews.com housing OR homes OR development'
+      - 'site:danvillesanramon.com housing OR homes OR development'
+      - 'site:eastbaytimes.com (Livermore OR Dublin OR Pleasanton OR "San Ramon") housing OR homes'
+  - name: Altamont
+    title: "Altamont News"
+    center: [37.77, -121.37]
+    radius_km: 30
+    terms: ["Altamont", "San Joaquin County"]
+    local_outlets: [mantecabulletin.com, tracypress.com]
+    site_queries:
+      - 'site:mantecabulletin.com homes OR housing OR development OR subdivision'
+      - 'site:recordnet.com (Tracy OR Manteca OR Lathrop OR "Mountain House") housing OR homes'
+      - 'site:modbee.com (Tracy OR Manteca OR Lathrop) housing OR homes'
+      - '"Mountain House" California homes OR housing'
+      - '"Tracy Hills" OR "River Islands" OR "Ellis" Tracy homes OR housing'
+      - 'site:ttownmedia.com Tracy housing OR homes OR development'
+      - 'site:sjvsun.com OR site:stocktonia.org (Tracy OR Manteca OR Lathrop) housing OR homes'
+  - name: Other
+    title: "Other Areas News"
+    center: null
+    radius_km: 0
+    terms: []
+
+news_modules:
+  enabled: true
+  days: 14
+  max_cards: 12
+  min_rank: 5                    # drop weak matches
+  fetch_top: 45                  # resolve + summarize at most N candidates per module (cached in SQLite)
+  page_timeout_sec: 8
+  city_query: '"{city}" housing OR homes OR "real estate" OR development OR mortgage'
+  query_exclude: [obituary, funeral]
+  # an article counts as local if its publisher is one of these domains, or its text has a context term below,
+  # or it names 2+ of the region's cities (needed because "Dublin", "Tracy", "Pleasanton", "Lathrop" exist elsewhere)
+  local_domains: [pleasantonweekly.com, independentnews.com, danvillesanramon.com, eastbaytimes.com, mercurynews.com,
+                  sfchronicle.com, sfgate.com, patch.com/california, mantecabulletin.com, tracypress.com, recordnet.com,
+                  modbee.com, ttownmedia.com, ktvu.com, kcra.com, abc7news.com, nbcbayarea.com, kqed.org, calmatters.org,
+                  bizjournals.com/sanfrancisco, bizjournals.com/sacramento, sjvsun.com, stocktonia.org, eastcountytoday.net]
+  context_terms: [california, "calif.", " ca ", "bay area", "east bay", "tri-valley", "alameda county", "contra costa",
+                  "san joaquin", "central valley", stockton, modesto, "san jose", "i-580", "altamont"]
+  blocked_sources: [irish, rte, "the journal", echo.ie, "business post", "dublin live", "dublin people", herald.ie, "independent.ie",
+                    "breaking news.ie", "newstalk", "the currency", "sunday world", "dublin inquirer", "texas", "connecticut"]
+  blocked_tlds: [".ie", ".uk", ".au", ".ca", ".nz", ".in"]
+  blocked_text: ["€", "£", "co. dublin", " lucan", "liffey", "an bord", "fingal", "texas", " tx "]
+  # at least one of these must appear (headline first, then headline + summary)
+  core: [housing, " homes", "home prices", "home sales", "real estate", mortgage, zoning, rezon, "development",
+         "construction", apartment, " units", builder, "housing element", inventory, listings, subdivision, " adu",
+         affordab, "planning commission", townhome, condo, "median price", "homebuy", "home buy", "home values"]
+  weights:
+    "housing element": 6
+    "home prices": 5
+    "median price": 5
+    "home sales": 5
+    "home values": 4
+    "inventory": 4
+    "new homes": 5
+    "housing development": 5
+    "housing project": 5
+    "affordable housing": 4
+    "mortgage": 4
+    "affordab": 3
+    "zoning": 4
+    "rezon": 4
+    "planning commission": 4
+    "city council": 2
+    "approved": 2
+    "approves": 2
+    "builder": 3
+    "lennar": 3
+    "toll brothers": 3
+    "shea homes": 3
+    "kb home": 3
+    "pulte": 3
+    "d.r. horton": 3
+    "apartment": 3
+    " units": 3
+    "subdivision": 4
+    "acres": 2
+    "construction": 2
+    "development": 2
+    "real estate": 3
+    "housing market": 5
+    "homebuy": 4
+    "listings": 2
+    "housing": 3
+    " homes": 2
+    " adu": 3
+    "specific plan": 4
+    "annex": 3
+  exclude: [obituary, obit, funeral, police, shooting, shot , arrest, murder, homicide, stabbing, killed, crash, collision,
+            robbery, theft, burglar, " fire ", wildfire, sentenced, suspect, football, basketball, baseball, soccer,
+            volleyball, playoff, varsity, softball, "game", candidate, "school board", ireland, irish, ohio, "dublin city council",
+            "co. dublin", kildare, fingal, nursing home, "funeral home", "home run", "homecoming", "tracy morgan",
+            "tracy chapman", "tracy jordan", "development director", "fundraiser"]

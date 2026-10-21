@@ -3,3 +3,4 @@ requests
 PyYAML
 Jinja2
 Pillow   # only needed if report.embed_photos: true
+googlenewsdecoder   # resolves Google News links to publisher URLs

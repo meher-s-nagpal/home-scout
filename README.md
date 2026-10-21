@@ -21,6 +21,20 @@ Results are never filtered by price or affordability: every house that meets the
 7. Optionally emails the digest (turned off by default).
 
 ## Page sections
+- **Tabs: All listings | ♥ Favorites (N).** Tap ♡ on any card to save it. Favorites live in your browser's localStorage
+  (per device/browser) as a snapshot: address, price, beds/baths/sqft/lot, photos, link, down-payment table, and the date saved.
+  A favorite stays even after the listing leaves the daily feed (marked **"No longer in today's feed"**). If it comes back at a different
+  price, it shows **"Price changed: old → new"**. Remove one with ♥ in the Favorites tab. Use **Export/Import** to move favorites between
+  phone and computer as a JSON file.
+- **📰 Region news modules (top of page):** one swipeable card row per region in `locations.yaml` (`region:` = Tri-Valley / Altamont; a new
+  location is assigned to the nearest region within `radius_km`, otherwise an "Other Areas News" module appears). Housing-market stories only,
+  picked by keyword rules in `config.yaml → news_modules`: they must mention housing, prices, sales, inventory, mortgages, zoning or planning,
+  the housing element, or builders, and crime, obituaries, sports, the Irish/Ohio Dublin, and people named Tracy are excluded. Stories come from
+  the last 14 days, ranked by relevance and recency, up to 12 cards. Each card's **summary** is the publisher page's `og:description`.
+  Google News links are resolved to the publisher URL with `googlenewsdecoder` and fetched once (8 s timeout), then cached in SQLite
+  (`article_cache`). Tapping a card opens the publisher's article.
+- **Photo carousel:** up to 15 photos per listing (Realtor.com 1024×768 variants), swipe on a phone, ‹ › arrows on desktop, with a "3/12" counter.
+  Photos are lazy-loaded. Tapping a photo doesn't navigate away; "View on Realtor.com" is the link.
 - **Search box**: filters the listings by city, zip, or street across every area. Typing a search also shows listings that aren't new.
 - **Listings**: cards with the down-payment table (filters & sort are in the collapsible panel).
 - **📈 Pricing in this area**: per area, the current median list price, median $/sqft, active inventory, and median days on market, taken from

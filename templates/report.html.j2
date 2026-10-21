@@ -21,7 +21,7 @@ h2{font-size:18px;margin:6px 0 10px}h3{font-size:15px;margin:0 0 8px}
 table{border-collapse:collapse;width:100%}th,td{padding:5px 6px;border-bottom:1px solid #eee;text-align:left}th{background:#fafafa;font-weight:600}
 .num{text-align:right;white-space:nowrap}
 /* filters */
-details.flt{position:sticky;top:0;z-index:5;padding:0}details.flt>summary{list-style:none;padding:12px 14px;cursor:pointer;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+details.flt{position:sticky;top:56px;z-index:5;padding:0}details.flt>summary{list-style:none;padding:12px 14px;cursor:pointer;font-weight:600;display:flex;justify-content:space-between;align-items:center}
 details.flt>summary::-webkit-details-marker{display:none}details.flt>summary::after{content:"▾";color:var(--mut)}details.flt[open]>summary::after{content:"▴"}
 .fbody{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:0 14px 14px}
 .fbody label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:3px}
@@ -32,7 +32,33 @@ details.flt>summary::-webkit-details-marker{display:none}details.flt>summary::af
 /* listing grid */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:14px}
 .L{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden;display:flex;flex-direction:column}
-.L .ph{position:relative;aspect-ratio:4/3;max-height:260px;background:#dde3ea;width:100%}.L .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.L .ph{position:relative;aspect-ratio:4/3;max-height:280px;background:#dde3ea;width:100%}
+.car{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;height:100%;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.car::-webkit-scrollbar{display:none}.car img{flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:center;display:block}
+.arr{position:absolute;top:50%;transform:translateY(-50%);border:0;background:rgba(0,0,0,.45);color:#fff;font-size:26px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:none;line-height:32px;padding:0}
+.arr.prev{left:8px}.arr.next{right:8px}@media (hover:hover){.ph:hover .arr{display:block}}
+.cnt{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:2px 8px;border-radius:10px}
+/* tabs + favorites */
+.tabs{position:sticky;top:0;z-index:6;display:flex;gap:6px;background:var(--bg);padding:8px 0}
+.tab{flex:1;border:0;border-radius:10px;padding:10px;font-size:15px;font-weight:600;background:#e3e8ef;color:#202124;cursor:pointer}
+.tab.on{background:var(--b);color:#fff}
+.heart{position:absolute;top:6px;right:6px;z-index:2;border:0;background:rgba(255,255,255,.92);border-radius:50%;width:38px;height:38px;
+ font-size:20px;line-height:38px;padding:0;cursor:pointer;color:#c5221f;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.heart.on{background:#c5221f;color:#fff}
+.favtools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.favtools button,.favtools label{border:1px solid #ccc;background:#fff;border-radius:8px;padding:8px 12px;font-size:14px;cursor:pointer}
+.fstat{display:inline-block;font-size:12px;font-weight:600;border-radius:8px;padding:2px 8px;margin:4px 4px 0 0}
+.fstat.gone{background:#fde7e9;color:#a50e0e}.fstat.chg{background:#fff4e5;color:#8a5300}.fstat.live{background:#e6f4ea;color:#137333}
+.flt{z-index:5}
+/* news modules */
+.nm{margin:4px 0 14px}.nm h2{margin:6px 2px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.nm h2 small{font-weight:400;font-size:12px;color:var(--mut)}
+.nrow{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.ncard{flex:0 0 min(82%,300px);scroll-snap-align:start;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.14);padding:12px;
+ text-decoration:none;color:#202124;display:flex;flex-direction:column;gap:6px;min-height:150px}
+.ncard b{font-size:15px;line-height:1.3}.ncard .meta{font-size:12px;color:var(--mut)}
+.ncard p{margin:0;font-size:13px;color:#3c4043;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.ncard:active{background:#f1f5fd}
 .tag{position:absolute;top:8px;left:8px;background:var(--b);color:#fff;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:600}
 .tag.init{background:#7b1fa2}.tag.old{background:#5f6368}.tag.stale{background:var(--r)}
 .L .bd{padding:12px 14px;flex:1}.price{font-size:23px;font-weight:700}.addr a{color:#202124;text-decoration:none;font-weight:600;font-size:15px}
@@ -71,6 +97,18 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
  <div class="kpi">Search<b style="font-size:13px">{{ cfg.search.beds_min }}+ bd · {{ cfg.search.baths_min }}+ ba · single-family · lot ≥ {{ cfg.search.lot_sqft_min|intc }} sf</b></div>
 </div></div></header>
 <div class="wrap">
+{% if not email_mode %}<nav class="tabs"><button class="tab on" id="tab-all">🏠 All listings</button><button class="tab" id="tab-fav">♥ Favorites (<span id="favn">0</span>)</button></nav>
+<section id="favview" style="display:none">
+ <div class="favtools"><button id="fav-export">⬇ Export favorites</button><label>⬆ Import<input type="file" id="fav-import" accept="application/json,.json" style="display:none"></label>
+ <span class="small mut">Saved in this browser only - use Export/Import to move them between phone and computer.</span></div>
+ <div class="grid" id="favgrid"></div>
+ <div class="card" id="favempty" style="display:none">No favorites yet - tap ♡ on any listing.</div>
+</section>
+<div id="allview">{% endif %}
+{% for m in modules %}<section class="nm"><h2>📰 {{ m.title }} <small>{{ m.cards|length }} housing stories · swipe →</small></h2>
+{% if m.cards %}<div class="nrow">{% for c in m.cards %}<a class="ncard" href="{{ c.url }}" target="_blank" rel="noopener"><b>{{ c.title }}</b>
+<span class="meta">{{ c.source }} · {{ c.pub_str }}</span>{% if c.summary %}<p>{{ c.summary }}</p>{% else %}<p class="mut">Tap to read on {{ c.source or 'the publisher site' }}.</p>{% endif %}</a>{% endfor %}</div>
+{% else %}<p class="small mut">No housing-market stories for {{ m.cities|join(', ') }} in the last {{ cfg.news_modules.days }} days.</p>{% endif %}</section>{% endfor %}
 {% if errors %}<div class="card err"><b>⚠ Problems this run</b><ul class="small">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 
 {% if notices %}<div class="card" style="border-left:4px solid var(--g)"><b>Locations updated</b><ul class="small">{% for n in notices %}<li>{{ n }}</li>{% endfor %}</ul></div>{% endif %}
@@ -93,7 +131,10 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
 <div class="grid" id="grid">
 {% for L in listings %}{% if not email_mode or L.is_new %}
 <div class="L" data-id="{{ L.id }}">
- <div class="ph">{% if L.photo_src %}<a href="{{ L.url }}" target="_blank" rel="noopener"><img src="{{ L.photo_src }}" alt="" loading="lazy" referrerpolicy="no-referrer"></a>{% endif %}
+ <div class="ph">{% if not email_mode %}<button class="heart" data-fav="{{ L.id }}" aria-label="favorite">♡</button>{% endif %}
+  <div class="car" tabindex="0" aria-label="photos"{% if L.ph_mid and not email_mode %} data-pre="{{ L.ph_pre }}" data-suf="{{ L.ph_suf }}" data-mid="{{ L.ph_mid }}"{% endif %}>{% if L.photos %}<img src="{{ L.photos[0] }}" alt="photo 1" loading="lazy" decoding="async" referrerpolicy="no-referrer">{% endif %}</div>
+  {% if L.photos|length > 1 %}<button class="arr prev" aria-label="previous photo">‹</button><button class="arr next" aria-label="next photo">›</button>
+  <span class="cnt"><span class="ci">1</span>/{{ L.photos|length }}</span>{% endif %}
   {% if L.stale %}<span class="tag stale">last known · seen {{ L.first_seen }}</span>{% elif L.initial %}<span class="tag init">INITIAL · listed {{ L.list_date }}</span>{% elif L.is_new %}<span class="tag">NEW</span>{% else %}<span class="tag old">seen {{ L.first_seen }}</span>{% endif %}</div>
  <div class="bd">
   <div class="price">{{ L.price|money }}</div>
@@ -177,6 +218,7 @@ footer{color:var(--mut);font-size:12px;padding:20px 16px 40px;text-align:center}
 {% else %}<p class="small"><b>Add or remove locations:</b> locally run <code>python scout.py --add-location "Brentwood, CA" --remove-location "Lathrop"</code>. On GitHub, this button links to the workflow's <i>Run workflow</i> form.</p>{% endif %}
 </div></details>
 </div>
+{% if not email_mode %}</div>{% endif %}
 <footer>Listings: Realtor.com data via HomeHarvest (personal use) · Rate: {{ rate.source }} · News: Google News RSS<br>Estimates only; confirm with a lender. Generated by plain Python, no AI.</footer>
 
 {% if not email_mode %}
@@ -203,6 +245,102 @@ function update(){
   });
   $('count').textContent = `${shown} of ${D.listings.length} shown`; $('empty').style.display = shown ? 'none' : '';
 }
+function initCar(ph){
+  const car = ph.querySelector('.car'), ci = ph.querySelector('.ci'); if (!car) return;
+  if (car.dataset.mid){   // rebuild the rest of the photos from the compact encoding
+    const pre = car.dataset.pre, suf = car.dataset.suf;
+    car.insertAdjacentHTML('beforeend', car.dataset.mid.split('|').map((m, i) =>
+      `<img src="${esc(pre + m + suf)}" alt="photo ${i + 2}" loading="lazy" decoding="async" referrerpolicy="no-referrer">`).join(''));
+    delete car.dataset.mid;
+  }
+  const go = d => car.scrollBy({left: d * car.clientWidth, behavior: 'smooth'});
+  ph.querySelector('.prev')?.addEventListener('click', e => { e.preventDefault(); go(-1); });
+  ph.querySelector('.next')?.addEventListener('click', e => { e.preventDefault(); go(1); });
+  if (ci) car.addEventListener('scroll', () => { ci.textContent = Math.round(car.scrollLeft / car.clientWidth) + 1; }, {passive: true});
+  car.addEventListener('keydown', e => { if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); });
+}
+
+/* ---------- Favorites (localStorage, plain JS) ---------- */
+const FKEY = 'homescout.favorites.v1';
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => v == null ? '-' : Math.round(v).toLocaleString();
+function loadFavs(){ try { return JSON.parse(localStorage.getItem(FKEY)) || {}; } catch(e){ return {}; } }
+function saveFavs(f){ try { localStorage.setItem(FKEY, JSON.stringify(f)); } catch(e){ alert('Could not save favorites: ' + e); } }
+let FAVS = loadFavs();
+document.querySelectorAll('#grid .ph').forEach(initCar);
+function snapshot(id){
+  const l = byId[id], card = document.querySelector(`#grid .L[data-id="${CSS.escape(id)}"]`);
+  const photos = card ? [...card.querySelectorAll('.car img')].map(i => i.getAttribute('src')).filter(u => u && !u.startsWith('data:')) : [];
+  return {id, addr: l.addr, cl: l.cl, city: l.city, url: l.url, price: l.price, beds: l.beds, fb: l.fb, hb: l.hb, sqft: l.sqft,
+          lot: l.lot, year: l.year, hoa: l.hoa, list_date: l.list_date, photos: photos.slice(0, 15), fin: l.fin, rate: D.rate,
+          snap_date: D.today};
+}
+function refreshFavs(){
+  // sync favorites with today's feed: update snapshot, remember the price when first saved
+  for (const id in FAVS){
+    const f = FAVS[id], l = byId[id];
+    if (l){ const s = snapshot(id); if (!s.photos.length) s.photos = f.photos || [];
+      FAVS[id] = Object.assign({}, f, s, {orig_price: f.orig_price ?? f.price, fav_at: f.fav_at, in_feed: true, seen: D.today}); }
+    else FAVS[id].in_feed = false;
+  }
+  saveFavs(FAVS);
+}
+function toggleFav(id){
+  if (FAVS[id]) delete FAVS[id];
+  else if (byId[id]) { const s = snapshot(id); FAVS[id] = Object.assign(s, {fav_at: new Date().toLocaleDateString('en-CA'), orig_price: s.price, in_feed: true, seen: D.today}); }
+  saveFavs(FAVS); paintHearts(); if ($('favview').style.display !== 'none') renderFavs();
+}
+function paintHearts(){
+  document.querySelectorAll('.heart[data-fav]').forEach(b => { const on = !!FAVS[b.dataset.fav]; b.classList.toggle('on', on); b.textContent = on ? '♥' : '♡'; });
+  $('favn').textContent = Object.keys(FAVS).length;
+}
+function favCard(f){
+  const photos = (f.photos || []).map(u => `<img src="${esc(u)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`).join('');
+  const n = (f.photos || []).length;
+  let stat = f.in_feed ? `<span class="fstat live">In today's feed</span>` : `<span class="fstat gone">No longer in today's feed${f.seen ? ' (last seen ' + esc(f.seen) + ')' : ''}</span>`;
+  if (f.orig_price && f.price !== f.orig_price) stat += `<span class="fstat chg">Price changed: $${num(f.orig_price)} → $${num(f.price)}</span>`;
+  const rows = (f.fin || []).map(r => `<tr class="${r[4] ? 'ovr' : ''}"><td>${esc(r[0])}${r[4] ? ' ⚠' : ''}</td><td class="num">$${num(r[1])}</td><td class="num">$${num(r[2])}</td><td class="num mo">$${num(r[3])}</td></tr>`).join('');
+  return `<div class="L" data-fid="${esc(f.id)}"><div class="ph"><button class="heart on" data-unfav="${esc(f.id)}" aria-label="remove favorite">♥</button>
+   <div class="car">${photos}</div>${n > 1 ? `<button class="arr prev">‹</button><button class="arr next">›</button><span class="cnt"><span class="ci">1</span>/${n}</span>` : ''}</div>
+   <div class="bd"><div class="price">$${num(f.price)}</div>${stat}
+   <div class="addr"><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.addr)}</a><div class="mut">${esc(f.cl)}</div></div>
+   <div class="facts"><span><b>${esc(f.beds)}</b> bd</span><span><b>${esc(f.fb)}</b>${f.hb ? '+' + esc(f.hb) + '½' : ''} ba</span><span><b>${num(f.sqft)}</b> sf</span>
+   <span>lot <b>${num(f.lot)}</b> sf</span><span>built <b>${esc(f.year || '-')}</b></span><span>HOA $${num(f.hoa)}/mo</span><span class="mut">listed ${esc(f.list_date)}</span></div>
+   <table class="dp"><tr><th>Down</th><th class="num">Down $</th><th class="num">Loan</th><th class="num">Est. /mo</th></tr>${rows}</table>
+   <div class="small mut" style="margin-top:4px">Saved ${esc(f.fav_at)} · payments as of ${esc(f.snap_date)} at ${esc(f.rate)}%</div>
+   <a class="btn" href="${esc(f.url)}" target="_blank" rel="noopener">View on Realtor.com →</a></div></div>`;
+}
+function renderFavs(){
+  const list = Object.values(FAVS).sort((a, b) => (b.in_feed - a.in_feed) || String(b.fav_at).localeCompare(String(a.fav_at)));
+  $('favgrid').innerHTML = list.map(favCard).join('');
+  $('favempty').style.display = list.length ? 'none' : '';
+  $('favgrid').querySelectorAll('.ph').forEach(initCar);
+}
+function showTab(fav){
+  $('favview').style.display = fav ? '' : 'none'; $('allview').style.display = fav ? 'none' : '';
+  $('tab-fav').classList.toggle('on', fav); $('tab-all').classList.toggle('on', !fav);
+  if (fav) renderFavs(); history.replaceState(null, '', fav ? '#favorites' : '#');
+  const t = document.querySelector('.tabs'); if (t && window.scrollY > t.offsetTop) window.scrollTo(0, t.offsetTop);
+}
+document.addEventListener('click', e => {
+  const h = e.target.closest('.heart[data-fav]'); if (h){ e.preventDefault(); toggleFav(h.dataset.fav); return; }
+  const u = e.target.closest('.heart[data-unfav]'); if (u){ e.preventDefault(); delete FAVS[u.dataset.unfav]; saveFavs(FAVS); paintHearts(); renderFavs(); }
+});
+$('tab-all').addEventListener('click', () => showTab(false)); $('tab-fav').addEventListener('click', () => showTab(true));
+$('fav-export').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({app: 'home-scout', version: 1, exported: new Date().toISOString(), favorites: FAVS}, null, 1)], {type: 'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `home-scout-favorites-${D.today}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+});
+$('fav-import').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => { const d = JSON.parse(t), inc = d.favorites || d; let n = 0;
+    for (const id in inc){ if (inc[id] && inc[id].id){ if (!FAVS[id] || String(inc[id].fav_at) < String(FAVS[id].fav_at)) FAVS[id] = Object.assign({}, FAVS[id] || {}, inc[id]); n++; } }
+    refreshFavs(); paintHearts(); renderFavs(); alert(`Imported ${n} favorite(s).`);
+  }).catch(err => alert('Import failed: ' + err)); e.target.value = '';
+});
+refreshFavs(); paintHearts();
+if (location.hash === '#favorites') showTab(true);
 (function init(){
   const v = D.defaults;
   $('beds').value = v.beds_min; $('baths').value = v.baths_min; $('lot').value = v.lot_sqft_min;
