@@ -344,7 +344,7 @@ if (location.hash === '#favorites') showTab(true);
 (function init(){
   const v = D.defaults;
   $('beds').value = v.beds_min; $('baths').value = v.baths_min; $('lot').value = v.lot_sqft_min;
-  $('newonly').checked = !!v.new_only; $('sort').value = v.sort || 'price_asc'; $('pmaxr').value = $('pmaxr').max;
+  $('newonly').checked = !!v.new_only && D.listings.some(l => l.is_new);   // nothing new yet today -> show recent listings $('sort').value = v.sort || 'price_asc'; $('pmaxr').value = $('pmaxr').max;
   if (window.matchMedia('(min-width: 900px)').matches) $('fdet').open = true;   // collapsed on phones
   $('pmaxr').addEventListener('input', e => { $('pmax').value = (+e.target.value >= +e.target.max) ? '' : e.target.value; update(); });
   $('pmax').addEventListener('input', e => { $('pmaxr').value = e.target.value || $('pmaxr').max; update(); });
