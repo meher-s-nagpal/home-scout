@@ -79,14 +79,34 @@ def monthly_cost(price, down, typ, rate, fin, county, hoa=0.0):
     return out
 
 # ----------------------------------------------------------------- data sources
-def fetch_rate():
-    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US"
-    r = requests.get(url, headers=UA, timeout=30); r.raise_for_status()
+def _rate_rows_fred():
+    r = requests.get("https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US", headers=UA, timeout=45)
+    r.raise_for_status()
     rows = [row for row in csv.reader(io.StringIO(r.text))][1:]
-    rows = [(d, float(v)) for d, v in rows if v not in (".", "")]
-    (d0, v0), (d1, v1) = rows[-2], rows[-1]
-    return {"date": d1, "rate": v1, "prev_date": d0, "prev": v0, "change": round(v1 - v0, 2),
-            "source": "Freddie Mac PMMS via FRED (MORTGAGE30US), weekly"}
+    return [(r[0], float(r[1])) for r in rows if len(r) == 2 and r[1] not in (".", "")], "Freddie Mac PMMS via FRED (MORTGAGE30US), weekly"
+
+def _rate_rows_freddie():
+    r = requests.get("https://www.freddiemac.com/pmms/docs/PMMS_history.csv", headers=UA, timeout=45)
+    r.raise_for_status(); out = []
+    for row in list(csv.DictReader(io.StringIO(r.text))):
+        try:
+            m, d, y = row["date"].split("/"); out.append((f"{y}-{int(m):02d}-{int(d):02d}", float(row["pmms30"])))
+        except (ValueError, KeyError): pass
+    return out, "Freddie Mac PMMS (freddiemac.com), weekly"
+
+def fetch_rate():
+    """Latest 30-yr fixed: FRED, then Freddie Mac's own CSV (each tried twice)."""
+    last = None
+    for fn in (_rate_rows_fred, _rate_rows_freddie):
+        for attempt in range(2):
+            try:
+                rows, src = fn()
+                (d0, v0), (d1, v1) = rows[-2], rows[-1]
+                return {"date": d1, "rate": v1, "prev_date": d0, "prev": v0, "change": round(v1 - v0, 2), "source": src}
+            except Exception as e:
+                last = e; log.warning("rate source %s failed (attempt %d): %s", fn.__name__, attempt + 1, e); time.sleep(3)
+    raise RuntimeError(f"all rate sources failed: {last}")
+
 
 def fetch_listings(location, sc, listing_type="for_sale", days=None):
     """One HomeHarvest call. Lot-size filter is applied in Python so new builds on small lots are still seen."""
@@ -197,11 +217,20 @@ def run(cfg, args):
     errors = [f"Locations: {m}" for m in loc_msgs if m.startswith(("could not", "warning"))]
     notices = [m for m in loc_msgs if not m.startswith(("could not", "warning"))]
 
-    try: rate_info = fetch_rate()
+    con.execute("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)")
+    try:
+        rate_info = fetch_rate()
+        con.execute("INSERT OR REPLACE INTO meta VALUES('rate', ?)", (json.dumps(rate_info),))
     except Exception as e:
-        log.error("rate fetch failed: %s", e); errors.append(f"Mortgage rate fetch failed ({e}); using fallback.")
-        rate_info = {"date": "n/a", "rate": fin.get("rate_override_pct") or 7.0, "prev": None, "change": None,
-                     "prev_date": "", "source": "fallback (fetch failed)"}
+        log.error("rate fetch failed: %s", e)
+        cached = con.execute("SELECT v FROM meta WHERE k='rate'").fetchone()
+        if cached:
+            rate_info = json.loads(cached[0]); rate_info["source"] += " (cached - live fetch failed)"
+            errors.append(f"Mortgage rate fetch failed; using last known rate {rate_info['rate']}% (week of {rate_info['date']}).")
+        else:
+            rate_info = {"date": "n/a", "rate": fin.get("rate_override_pct") or 7.0, "prev": None, "change": None,
+                         "prev_date": "", "source": "fallback (fetch failed)"}
+            errors.append(f"Mortgage rate fetch failed ({e}); using fallback {rate_info['rate']}%.")
     rate = fin.get("rate_override_pct") or rate_info["rate"]
 
     new_cut = (t0 - dt.timedelta(days=sc["initial_run_days"] if first_run else sc.get("new_window_days", 7))).strftime("%Y-%m-%d")
