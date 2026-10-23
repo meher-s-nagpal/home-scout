@@ -126,15 +126,3 @@ areas:
   lon: -121.8617697
   added: '2026-10-20'
   region: Tri-Valley
-- city: Modesto
-  county: Stanislaus
-  location: Modesto, CA
-  match_city: true
-  news_name: Modesto
-  drive_min:
-    san_jose: 104
-    modesto: 0
-  lat: 37.6393419
-  lon: -120.9968892
-  region: Other
-  added: '2026-10-21'
